@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Watch & Earn</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <!-- Monetag SDK -->
+    <script src='//whephiwums.com/sdk.js' data-zone='9321934' data-sdk='show_9321934'></script>
+</head>
+<body class="theme-light"> <!-- Default theme -->
+
+    <div id="loader" class="loader-container">
+        <div class="loader"></div>
+        <p>Loading Your Watch & Earn Experience...</p>
+    </div>
+
+    <div id="app-container" style="display: none;">
+        <main id="main-content">
+            <!-- Profile Section -->
+            <section id="profile-page" class="page">
+                <h2>Profile</h2>
+                <div class="profile-info">
+                    <p><strong>Username:</strong> <span id="profile-username">N/A</span></p>
+                    <p><strong>User ID (TG):</strong> <span id="profile-tg-id">N/A</span></p>
+                    <p><strong>Unique App ID:</strong> <span id="profile-unique-id">N/A</span></p>
+                    <p><strong>Joined:</strong> <span id="profile-join-date">N/A</span></p>
+                    <p><strong>Total Points:</strong> <span id="profile-points">0</span></p>
+                    <p><strong>Referral Link:</strong> <input type="text" id="profile-referral-link" readonly style="width: 90%;"><button id="copy-referral-btn">Copy</button></p>
+                    <p><strong>Total Referrals:</strong> <span id="profile-total-referrals">0</span></p>
+                </div>
+                <div class="theme-switcher">
+                    <label for="theme-select">Theme:</label>
+                    <select id="theme-select">
+                        <option value="light">Light</option>
+                        <option value="dark">Dark</option>
+                        <option value="blue">Blue</option>
+                    </select>
+                </div>
+            </section>
+
+            <!-- Tap Section -->
+            <section id="tap-page" class="page">
+                <h2>Tap Master</h2>
+                <div class="tap-area">
+                    <div id="tap-cat">
+                        <img src="https://i.imgur.com/hzA03v7.png" alt="Tap Me!" id="cat-image" style="width:150px; height:150px; cursor: pointer;">
+                         <!-- Simple cat image, replace with your own -->
+                    </div>
+                    <p>Points: <span id="tap-points">0</span></p>
+                </div>
+                <div class="energy-bar-container">
+                    <span>Energy: <span id="energy-value">100</span>/<span id="max-energy-value">100</span></span>
+                    <div class="energy-bar">
+                        <div id="energy-fill"></div>
+                    エネルギー
+                    </div>
+                </div>
+                <p>Daily Taps Left: <span id="daily-taps-left">2500</span></p>
+                <p id="tap-message" class="message"></p>
+            </section>
+
+            <!-- Task Section -->
+            <section id="task-page" class="page">
+                <h2>Daily Tasks</h2>
+                <p>Complete tasks to earn points! Tasks refresh daily (UTC).</p>
+                <div id="task-list">
+                    <!-- Tasks will be loaded here by JavaScript -->
+                </div>
+                 <p id="task-message" class="message"></p>
+            </section>
+
+            <!-- Watch Ads Section -->
+            <section id="ads-page" class="page">
+                <h2>Watch Ads</h2>
+                <p>Watch an ad to earn <span id="ads-points-reward">50</span> points.</p>
+                <p>Ads watched today: <span id="ads-watched-today">0</span>/<span id="ads-max-daily">35</span></p>
+                <button id="watch-ad-btn">Watch Ad</button>
+                <p id="ad-status-message" class="message"></p>
+                <p>Next ad available in: <span id="ad-cooldown-timer">Ready</span></p>
+            </section>
+
+            <!-- Withdraw Section -->
+            <section id="withdraw-page" class="page">
+                <h2>Withdraw Points</h2>
+                <p>Your Points: <span id="withdraw-current-points">0</span></p>
+                <div class="withdraw-options">
+                    <div class="withdraw-option">
+                        <h4>Option 1: 85,000 Points</h4>
+                        <button class="withdraw-btn" data-points="85000">Withdraw 85,000</button>
+                    </div>
+                    <div class="withdraw-option">
+                        <h4>Option 2: 160,000 Points</h4>
+                        <button class="withdraw-btn" data-points="160000">Withdraw 160,000</button>
+                    </div>
+                    <div class="withdraw-option">
+                        <h4>Option 3: 300,000 Points</h4>
+                        <button class="withdraw-btn" data-points="300000">Withdraw 300,000</button>
+                    </div>
+                </div>
+                <div id="withdraw-form" style="display:none;">
+                    <h3>Withdraw <span id="withdraw-amount-display"></span> Points</h3>
+                    <input type="hidden" id="withdraw-points-amount">
+                    <label for="withdraw-method">Payment Method:</label>
+                    <select id="withdraw-method">
+                        <option value="UPI">UPI</option>
+                        <option value="Binance">Binance Pay ID</option>
+                    </select>
+                    <label for="withdraw-details" id="withdraw-details-label">UPI ID:</label>
+                    <input type="text" id="withdraw-details" placeholder="Enter your UPI ID">
+                    <button id="submit-withdrawal-btn">Submit Request</button>
+                </div>
+                <p id="withdraw-message" class="message"></p>
+            </section>
+        </main>
+
+        <nav id="bottom-nav">
+            <button data-page="profile-page" class="nav-btn active"><img src="https://img.icons8.com/ios-glyphs/30/ffffff/user-male-circle.png" alt="Profile"/><span>Profile</span></button>
+            <button data-page="tap-page" class="nav-btn"><img src="https://img.icons8.com/ios-filled/30/ffffff/hand-cursor.png" alt="Tap"/><span>Tap</span></button>
+            <button data-page="task-page" class="nav-btn"><img src="https://img.icons8.com/ios-filled/30/ffffff/task.png" alt="Tasks"/><span>Tasks</span></button>
+            <button data-page="ads-page" class="nav-btn"><img src="https://img.icons8.com/ios-filled/30/ffffff/play-button-circled.png" alt="Ads"/><span>Ads</span></button>
+            <button data-page="withdraw-page" class="nav-btn"><img src="https://img.icons8.com/ios-filled/30/ffffff/wallet.png" alt="Withdraw"/><span>Withdraw</span></button>
+        </nav>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
