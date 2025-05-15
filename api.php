@@ -1,334 +1,378 @@
 <?php
-// api.php
-ini_set('display_errors', 0); // Set to 0 for production. Use .htaccess for dev debugging.
-error_reporting(0); // Set to 0 for production.
-
 header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
+require_once 'db_config.php'; // Includes $pdo and constants
 
-require_once 'db_config.php'; // This will handle DB connection or exit with JSON error if connection fails
-
-// --- Helper Functions ---
-function generateUniqueAppId($conn) {
-    do {
-        $randomString = bin2hex(random_bytes(8));
-        $stmt = $conn->prepare("SELECT id FROM users WHERE unique_app_id = ?");
-        $stmt->bind_param("s", $randomString);
-        $stmt->execute();
-        $stmt->store_result();
-    } while ($stmt->num_rows > 0);
-    $stmt->close();
-    return $randomString;
+// --- Utility Functions ---
+function getTelegramUserData() {
+    if (isset($_GET['tg_user_data'])) {
+        $userData = json_decode($_GET['tg_user_data'], true);
+        if ($userData && isset($userData['id'])) {
+            return $userData;
+        }
+    }
+    return null;
 }
 
-function getCurrentUtcDate() { return gmdate('Y-m-d'); }
-function getCurrentUtcTimestamp() { return gmdate('Y-m-d H:i:s'); }
+function sendJsonResponse($success, $message, $data = null) {
+    $response = ['success' => $success, 'message' => $message];
+    if ($data !== null) {
+        $response['data'] = $data;
+    }
+    echo json_encode($response);
+    exit;
+}
 
-function getUserData($conn, $telegram_user_id) {
-    if (!$conn || $conn->connect_error) { // Extra check though db_config should handle it
+function getCurrentUtcDate() {
+    return gmdate('Y-m-d');
+}
+
+function getCurrentUtcTimestamp() {
+    return gmdate('Y-m-d H:i:s');
+}
+
+// Fetch user by Telegram ID, creates if not exists
+function getOrCreateUser($tgUserData, $referrerTgId = null) {
+    global $pdo;
+
+    if (!$tgUserData || !isset($tgUserData['id'])) {
         return null;
     }
-    $stmt = $conn->prepare("SELECT *, UNIX_TIMESTAMP(last_energy_update_ts) as last_energy_update_unix FROM users WHERE telegram_user_id = ?");
-    if (!$stmt) { /* Log prepare error */ return null; }
-    $stmt->bind_param("i", $telegram_user_id);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    $user = $result->fetch_assoc();
-    $stmt->close();
+    $telegram_user_id = $tgUserData['id'];
+    $username = isset($tgUserData['username']) ? $tgUserData['username'] : null;
+    $first_name = isset($tgUserData['first_name']) ? $tgUserData['first_name'] : ($username ?: 'User');
 
-    if ($user) {
-        $now_unix = time();
-        $last_update_unix = $user['last_energy_update_unix'];
-        $seconds_passed = $now_unix - $last_update_unix;
-        
-        $energy_to_add = 0;
-        if ($seconds_passed > 0 && $user['energy_refill_rate_seconds'] > 0) {
-            $energy_to_add = floor($seconds_passed / $user['energy_refill_rate_seconds']);
-        }
+    // Try to fetch user
+    $stmt = $pdo->prepare("SELECT * FROM users WHERE telegram_user_id = ?");
+    $stmt->execute([$telegram_user_id]);
+    $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        $new_energy = $user['energy'] + $energy_to_add;
-        if ($new_energy > $user['max_energy']) {
-             $new_energy = $user['max_energy'];
-        }
-
-
-        if ($new_energy != $user['energy'] || $seconds_passed > ($user['energy_refill_rate_seconds'] * 2) ) { // Update if energy changed or significant time passed
-            $user['energy'] = $new_energy;
-            $new_last_energy_update_ts = getCurrentUtcTimestamp();
-            
-            $update_stmt = $conn->prepare("UPDATE users SET energy = ?, last_energy_update_ts = ? WHERE telegram_user_id = ?");
-            if ($update_stmt) {
-                $update_stmt->bind_param("isi", $new_energy, $new_last_energy_update_ts, $telegram_user_id);
-                $update_stmt->execute();
-                $update_stmt->close();
-                $user['last_energy_update_ts'] = $new_last_energy_update_ts;
+    $isNewUser = false;
+    if (!$user) {
+        $isNewUser = true;
+        $referred_by_id_to_store = null;
+        if ($referrerTgId && $referrerTgId != $telegram_user_id) { // Check if referrerTgId is not the user themselves
+            // Find referrer's internal ID
+            $refStmt = $pdo->prepare("SELECT id FROM users WHERE telegram_user_id = ?");
+            $refStmt->execute([$referrerTgId]);
+            $referrerUser = $refStmt->fetch(PDO::FETCH_ASSOC);
+            if ($referrerUser) {
+                $referred_by_id_to_store = $referrerTgId; // Store telegram_user_id of referrer
             }
         }
 
-        $current_utc_date = getCurrentUtcDate();
-        if ($user['last_tap_date_utc'] != $current_utc_date) {
-            $stmt_reset_taps = $conn->prepare("UPDATE users SET daily_taps = 0, last_tap_date_utc = ? WHERE telegram_user_id = ?");
-             if ($stmt_reset_taps) {
-                $stmt_reset_taps->bind_param("si", $current_utc_date, $telegram_user_id);
-                $stmt_reset_taps->execute();
-                $stmt_reset_taps->close();
-                $user['daily_taps'] = 0;
-                $user['last_tap_date_utc'] = $current_utc_date;
-            }
-        }
+        $insertStmt = $pdo->prepare("
+            INSERT INTO users (telegram_user_id, username, first_name, max_energy, energy_refill_rate_per_second, max_clicks_per_day, max_ads_per_day, referred_by_telegram_user_id, last_energy_update, last_click_date_utc, last_ad_day_utc, last_tasks_reset_date_utc) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?, ?)
+        ");
+        $currentUtcDate = getCurrentUtcDate();
+        $insertStmt->execute([
+            $telegram_user_id, $username, $first_name, 
+            DEFAULT_MAX_ENERGY, ENERGY_REFILL_RATE_PER_SECOND, MAX_CLICKS_PER_DAY, MAX_ADS_PER_DAY, 
+            $referred_by_id_to_store, $currentUtcDate, $currentUtcDate, $currentUtcDate
+        ]);
+        $userId = $pdo->lastInsertId();
 
-        if ($user['last_ads_reset_date_utc'] != $current_utc_date) {
-            $stmt_reset_ads = $conn->prepare("UPDATE users SET daily_ads_watched_count = 0, last_ads_reset_date_utc = ? WHERE telegram_user_id = ?");
-            if ($stmt_reset_ads) {
-                $stmt_reset_ads->bind_param("si", $current_utc_date, $telegram_user_id);
-                $stmt_reset_ads->execute();
-                $stmt_reset_ads->close();
-                $user['daily_ads_watched_count'] = 0;
-                $user['last_ads_reset_date_utc'] = $current_utc_date;
-            }
+        // Award points to referrer if new user and valid referrer
+        if ($referred_by_id_to_store) {
+            $updateRefPointsStmt = $pdo->prepare("UPDATE users SET points = points + ? WHERE telegram_user_id = ?");
+            $updateRefPointsStmt->execute([POINTS_PER_REFERRAL, $referred_by_id_to_store]);
         }
         
-        $user['points_per_ad'] = POINTS_PER_AD;
-        $user['ad_cooldown_seconds'] = AD_COOLDOWN_SECONDS;
+        $stmt->execute([$telegram_user_id]); // Re-fetch the newly created user
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+
+    // Add bot username and points_per_tap and points_per_ad to user data dynamically for frontend
+    $user['bot_username'] = TELEGRAM_BOT_USERNAME;
+    $user['points_per_tap'] = POINTS_PER_TAP;
+    $user['points_per_ad'] = POINTS_PER_AD_WATCH;
+
+    // Count total referrals
+    $refCountStmt = $pdo->prepare("SELECT COUNT(*) as total_referrals FROM users WHERE referred_by_telegram_user_id = ?");
+    $refCountStmt->execute([$user['telegram_user_id']]);
+    $referralData = $refCountStmt->fetch(PDO::FETCH_ASSOC);
+    $user['total_referrals'] = $referralData['total_referrals'] ?? 0;
+
+
+    return $user;
+}
+
+// Update energy based on time passed
+function updateUserEnergy($user) {
+    global $pdo;
+    $currentTime = time();
+    $lastUpdate = strtotime($user['last_energy_update']);
+    $timeDiffSeconds = $currentTime - $lastUpdate;
+
+    if ($timeDiffSeconds > 0 && $user['energy'] < $user['max_energy']) {
+        $energyGained = floor($timeDiffSeconds * $user['energy_refill_rate_per_second']);
+        if ($energyGained > 0) {
+            $newEnergy = min($user['max_energy'], $user['energy'] + $energyGained);
+            $stmt = $pdo->prepare("UPDATE users SET energy = ?, last_energy_update = CURRENT_TIMESTAMP WHERE id = ?");
+            $stmt->execute([$newEnergy, $user['id']]);
+            $user['energy'] = $newEnergy;
+            $user['last_energy_update'] = getCurrentUtcTimestamp(); // Reflect update
+        }
     }
     return $user;
 }
 
-// --- Main Action Handler ---
-$action = $_POST['action'] ?? null;
-// telegram_user_id is passed in POST data for most actions, except init_user where it's part of the payload.
-// For actions needing it, it will be retrieved from POST or from existing session if that was implemented.
-// For this structure, it's mostly passed in POST data.
+// Check and reset daily limits
+function checkAndResetDailyLimits($user) {
+    global $pdo;
+    $currentUtcDate = getCurrentUtcDate();
+    $updateFields = [];
+    $updateParams = [];
+
+    // Clicks
+    if ($user['last_click_date_utc'] != $currentUtcDate) {
+        $updateFields[] = "clicks_today = 0";
+        $updateFields[] = "last_click_date_utc = ?";
+        $updateParams[] = $currentUtcDate;
+        $user['clicks_today'] = 0;
+        $user['last_click_date_utc'] = $currentUtcDate;
+    }
+
+    // Ads
+    if ($user['last_ad_day_utc'] != $currentUtcDate) {
+        $updateFields[] = "ads_watched_today = 0";
+        $updateFields[] = "last_ad_day_utc = ?";
+        $updateParams[] = $currentUtcDate;
+        $user['ads_watched_today'] = 0;
+        $user['last_ad_day_utc'] = $currentUtcDate;
+    }
+    
+    // Tasks
+    if ($user['last_tasks_reset_date_utc'] != $currentUtcDate) {
+        $updateFields[] = "tasks_completed_today = NULL"; // Reset to empty JSON or NULL
+        $updateFields[] = "last_tasks_reset_date_utc = ?";
+        $updateParams[] = $currentUtcDate;
+        $user['tasks_completed_today'] = null;
+        $user['last_tasks_reset_date_utc'] = $currentUtcDate;
+    }
+
+
+    if (!empty($updateFields)) {
+        $updateQuery = "UPDATE users SET " . implode(', ', $updateFields) . " WHERE id = ?";
+        $updateParams[] = $user['id'];
+        $stmt = $pdo->prepare($updateQuery);
+        $stmt->execute($updateParams);
+    }
+    return $user;
+}
+
+
+// --- API Actions ---
+$action = isset($_GET['action']) ? $_GET['action'] : '';
+$tgUserData = getTelegramUserData();
+
+if (!$tgUserData && !in_array($action, ['some_public_action_if_any'])) { // Allow certain actions without tg_user_data if needed
+    sendJsonResponse(false, 'Telegram user data not found or invalid.');
+}
+
+// For most actions, we need the user object.
+$user = null;
+if ($tgUserData) {
+    $referrerId = isset($_GET['referrer_id']) ? $_GET['referrer_id'] : null;
+    $user = getOrCreateUser($tgUserData, $referrerId);
+    if (!$user) {
+        sendJsonResponse(false, 'Failed to get or create user profile.');
+    }
+    $user = updateUserEnergy($user);
+    $user = checkAndResetDailyLimits($user); // Check and reset daily counters
+}
+
 
 switch ($action) {
     case 'init_user':
-        $tg_id_param = isset($_POST['telegram_user_id']) ? (int)$_POST['telegram_user_id'] : 0;
-        $username = $_POST['username'] ?? null;
-        $first_name = $_POST['first_name'] ?? ($username ?: "User{$tg_id_param}");
-        $referred_by_app_id = $_POST['referred_by_app_id'] ?? null;
-
-        if ($tg_id_param <= 0) {
-            echo json_encode(['success' => false, 'message' => 'Invalid Telegram User ID.']);
-            exit;
-        }
-        
-        $user = getUserData($conn, $tg_id_param);
-
-        if (!$user) {
-            $unique_app_id = generateUniqueAppId($conn);
-            $current_ts = getCurrentUtcTimestamp();
-            $current_date_utc = getCurrentUtcDate();
-
-            $stmt = $conn->prepare("INSERT INTO users (telegram_user_id, username, first_name, unique_app_id, referred_by_app_id, last_tap_date_utc, last_ads_reset_date_utc, last_energy_update_ts, created_at, max_energy, energy_per_tap, energy_refill_rate_seconds, max_daily_taps, max_daily_ads) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 100, 1, 3, 2500, 35)");
-            if (!$stmt) { echo json_encode(['success' => false, 'message' => 'Server error preparing user creation.']); exit; }
-            $stmt->bind_param("issssssss", $tg_id_param, $username, $first_name, $unique_app_id, $referred_by_app_id, $current_date_utc, $current_date_utc, $current_ts, $current_ts);
-            
-            if ($stmt->execute()) {
-                $stmt->close();
-                $user = getUserData($conn, $tg_id_param); 
-                if ($referred_by_app_id && $user) {
-                    $stmt_referrer = $conn->prepare("UPDATE users SET points = points + ?, total_referrals_verified = total_referrals_verified + 1 WHERE unique_app_id = ? AND telegram_user_id != ?");
-                    if($stmt_referrer){
-                        $points_per_ref = POINTS_PER_REFERRAL;
-                        $stmt_referrer->bind_param("isi", $points_per_ref, $referred_by_app_id, $tg_id_param); // Prevent self-referral points
-                        $stmt_referrer->execute();
-                        $stmt_referrer->close();
-                    }
-                }
-                // Refetch user data after potential referral bonus to referrer
-                $user = getUserData($conn, $tg_id_param); // Ensure $user is the latest after all operations
-                echo json_encode(['success' => true, 'data' => $user, 'message' => 'User initialized.']);
-            } else {
-                echo json_encode(['success' => false, 'message' => 'Failed to create user: ' . $stmt->error]);
-                $stmt->close();
-            }
+        if ($user) {
+            sendJsonResponse(true, 'User initialized successfully.', $user);
         } else {
-            echo json_encode(['success' => true, 'data' => $user, 'message' => 'User data loaded.']);
+            sendJsonResponse(false, 'Failed to initialize user.');
         }
-        break;
-
-    case 'sync_user_data':
-        $telegram_user_id = isset($_POST['telegram_user_id']) ? (int)$_POST['telegram_user_id'] : 0;
-        if (!$telegram_user_id) { echo json_encode(['success' => false, 'message' => 'User ID required.']); exit; }
-        $user = getUserData($conn, $telegram_user_id);
-        if ($user) { echo json_encode(['success' => true, 'data' => $user]); }
-        else { echo json_encode(['success' => false, 'message' => 'User not found for sync.']); }
         break;
 
     case 'tap':
-        $telegram_user_id = isset($_POST['telegram_user_id']) ? (int)$_POST['telegram_user_id'] : 0;
-        if (!$telegram_user_id) { echo json_encode(['success' => false, 'message' => 'User ID required for tap.']); exit; }
-        
-        $user = getUserData($conn, $telegram_user_id);
-        if (!$user) { echo json_encode(['success' => false, 'message' => 'User not found.']); exit; }
+        if (!$user) sendJsonResponse(false, 'User not found.');
 
-        if ($user['daily_taps'] >= $user['max_daily_taps']) { echo json_encode(['success' => false, 'message' => 'Daily tap limit reached.', 'data' => $user]); exit; }
-        if ($user['energy'] < $user['energy_per_tap']) { echo json_encode(['success' => false, 'message' => 'Not enough energy.', 'data' => $user]); exit; }
+        if ($user['energy'] < 1) {
+            sendJsonResponse(false, 'Not enough energy.', $user);
+        }
+        if ($user['clicks_today'] >= $user['max_clicks_per_day']) {
+            sendJsonResponse(false, 'Daily tap limit reached.', $user);
+        }
 
-        $new_energy = $user['energy'] - $user['energy_per_tap'];
-        $points_earned_this_tap = POINTS_PER_TAP;
-        // $new_points = $user['points'] + $points_earned_this_tap; // Handled by single query
-        $new_daily_taps = $user['daily_taps'] + 1;
-        $current_ts = getCurrentUtcTimestamp();
+        $newPoints = $user['points'] + POINTS_PER_TAP;
+        $newEnergy = $user['energy'] - 1;
+        $newClicksToday = $user['clicks_today'] + 1;
 
-        $stmt = $conn->prepare("UPDATE users SET points = points + ?, energy = ?, daily_taps = ?, last_energy_update_ts = ? WHERE telegram_user_id = ?");
-        if (!$stmt) { echo json_encode(['success' => false, 'message' => 'Server error preparing tap.']); exit; }
-        $stmt->bind_param("iiisi", $points_earned_this_tap, $new_energy, $new_daily_taps, $current_ts, $telegram_user_id);
-        
-        if ($stmt->execute()) {
-            $stmt->close();
-            echo json_encode(['success' => true, 'message' => "+{$points_earned_this_tap}!", 'points_earned' => $points_earned_this_tap, 'data' => getUserData($conn, $telegram_user_id)]);
+        $stmt = $pdo->prepare("UPDATE users SET points = ?, energy = ?, clicks_today = ?, last_energy_update = CURRENT_TIMESTAMP WHERE id = ?");
+        if ($stmt->execute([$newPoints, $newEnergy, $newClicksToday, $user['id']])) {
+            $user['points'] = $newPoints;
+            $user['energy'] = $newEnergy;
+            $user['clicks_today'] = $newClicksToday;
+            $user['last_energy_update'] = getCurrentUtcTimestamp();
+            sendJsonResponse(true, 'Tap successful!', $user);
         } else {
-            echo json_encode(['success' => false, 'message' => 'Tap failed to record.', 'data' => $user]);
-            $stmt->close();
+            sendJsonResponse(false, 'Failed to record tap.', $user);
         }
         break;
 
     case 'get_tasks':
-        $telegram_user_id = isset($_POST['telegram_user_id']) ? (int)$_POST['telegram_user_id'] : 0;
-        if (!$telegram_user_id) { echo json_encode(['success' => false, 'message' => 'User ID required.']); exit; }
-        global $PREDEFINED_TASKS_CONFIG;
-        $current_utc_date = getCurrentUtcDate();
-        $stmt = $conn->prepare("SELECT task_id FROM user_tasks WHERE telegram_user_id = ? AND completion_date_utc = ?");
-        if (!$stmt) { echo json_encode(['success' => false, 'message' => 'Server error preparing tasks.']); exit; }
-        $stmt->bind_param("is", $telegram_user_id, $current_utc_date);
+        if (!$user) sendJsonResponse(false, 'User not found.');
+        $stmt = $pdo->prepare("SELECT id, title, description, link, points_reward FROM tasks WHERE active = TRUE ORDER BY id ASC");
         $stmt->execute();
-        $result = $stmt->get_result();
-        $completed_tasks_today = [];
-        while ($row = $result->fetch_assoc()) { $completed_tasks_today[] = $row['task_id']; }
-        $stmt->close();
-
-        $tasks_to_send = [];
-        foreach ($PREDEFINED_TASKS_CONFIG as $task_id => $task_details) {
-            $tasks_to_send[] = array_merge($task_details, ['completed_today' => in_array($task_id, $completed_tasks_today)]);
+        $tasks = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        $completedToday = $user['tasks_completed_today'] ? json_decode($user['tasks_completed_today'], true) : [];
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            $completedToday = []; // Handle potential JSON decode error
         }
-        echo json_encode(['success' => true, 'tasks' => $tasks_to_send]);
+
+        sendJsonResponse(true, 'Tasks fetched.', ['tasks' => $tasks, 'completed_today' => $completedToday]);
         break;
 
     case 'complete_task':
-        $telegram_user_id = isset($_POST['telegram_user_id']) ? (int)$_POST['telegram_user_id'] : 0;
-        if (!$telegram_user_id) { echo json_encode(['success' => false, 'message' => 'User ID required.']); exit; }
-        global $PREDEFINED_TASKS_CONFIG;
-        $task_id = isset($_POST['task_id']) ? (int)$_POST['task_id'] : 0;
+        if (!$user) sendJsonResponse(false, 'User not found.');
+        $taskId = isset($_GET['task_id']) ? intval($_GET['task_id']) : 0;
 
-        if (!isset($PREDEFINED_TASKS_CONFIG[$task_id])) { echo json_encode(['success' => false, 'message' => 'Invalid task ID.']); exit; }
-        
-        $task_details = $PREDEFINED_TASKS_CONFIG[$task_id];
-        $points_for_task = $task_details['points'];
-        $current_utc_date = getCurrentUtcDate();
+        if ($taskId <= 0) {
+            sendJsonResponse(false, 'Invalid task ID.', ['user_data' => $user]);
+        }
 
-        $stmt_check = $conn->prepare("SELECT id FROM user_tasks WHERE telegram_user_id = ? AND task_id = ? AND completion_date_utc = ?");
-        if (!$stmt_check) { echo json_encode(['success' => false, 'message' => 'Server error checking task.']); exit; }
-        $stmt_check->bind_param("iis", $telegram_user_id, $task_id, $current_utc_date);
-        $stmt_check->execute();
-        $stmt_check->store_result();
-        if ($stmt_check->num_rows > 0) { echo json_encode(['success' => false, 'message' => 'Task already completed today.', 'data' => getUserData($conn, $telegram_user_id)]); $stmt_check->close(); exit; }
-        $stmt_check->close();
+        $stmt = $pdo->prepare("SELECT points_reward FROM tasks WHERE id = ? AND active = TRUE");
+        $stmt->execute([$taskId]);
+        $task = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        $conn->begin_transaction();
-        try {
-            $stmt_insert_completion = $conn->prepare("INSERT INTO user_tasks (telegram_user_id, task_id, completion_date_utc) VALUES (?, ?, ?)");
-            if (!$stmt_insert_completion) throw new Exception("Prepare insert failed");
-            $stmt_insert_completion->bind_param("iis", $telegram_user_id, $task_id, $current_utc_date);
-            $stmt_insert_completion->execute();
-            $stmt_insert_completion->close();
-            
-            $stmt_update_points = $conn->prepare("UPDATE users SET points = points + ? WHERE telegram_user_id = ?");
-            if (!$stmt_update_points) throw new Exception("Prepare update points failed");
-            $stmt_update_points->bind_param("ii", $points_for_task, $telegram_user_id);
-            $stmt_update_points->execute();
-            $stmt_update_points->close();
+        if (!$task) {
+            sendJsonResponse(false, 'Task not found or not active.', ['user_data' => $user]);
+        }
 
-            $conn->commit();
-            echo json_encode(['success' => true, 'message' => "Task '{$task_details['title']}' completed! +{$points_for_task} points.", 'points_earned' => $points_for_task, 'data' => getUserData($conn, $telegram_user_id)]);
-        } catch (Exception $e) {
-            $conn->rollback();
-            error_log("Task completion error for user $telegram_user_id, task $task_id: " . $e->getMessage());
-            echo json_encode(['success' => false, 'message' => 'Failed to complete task. DB error.']);
+        $completedToday = $user['tasks_completed_today'] ? json_decode($user['tasks_completed_today'], true) : [];
+        if (json_last_error() !== JSON_ERROR_NONE) $completedToday = [];
+
+        if (in_array($taskId, $completedToday)) {
+            sendJsonResponse(false, 'Task already completed today.', ['user_data' => $user]);
+        }
+
+        $completedToday[] = $taskId;
+        $newPoints = $user['points'] + $task['points_reward'];
+
+        $updateStmt = $pdo->prepare("UPDATE users SET points = ?, tasks_completed_today = ? WHERE id = ?");
+        if ($updateStmt->execute([$newPoints, json_encode($completedToday), $user['id']])) {
+            $user['points'] = $newPoints;
+            $user['tasks_completed_today'] = json_encode($completedToday); // Update local user object
+            sendJsonResponse(true, 'Task completed!', ['user_data' => $user, 'reward' => $task['points_reward']]);
+        } else {
+            sendJsonResponse(false, 'Failed to update task completion.', ['user_data' => $user]);
         }
         break;
 
     case 'watched_ad':
-        $telegram_user_id = isset($_POST['telegram_user_id']) ? (int)$_POST['telegram_user_id'] : 0;
-        if (!$telegram_user_id) { echo json_encode(['success' => false, 'message' => 'User ID required.']); exit; }
-        $user = getUserData($conn, $telegram_user_id);
-        if (!$user) { echo json_encode(['success' => false, 'message' => 'User not found.']); exit; }
+        if (!$user) sendJsonResponse(false, 'User not found.');
 
-        if ($user['daily_ads_watched_count'] >= $user['max_daily_ads']) { echo json_encode(['success' => false, 'message' => 'Daily ad limit reached.', 'data' => $user]); exit; }
-
-        $current_time_unix = time();
-        if ($user['last_ad_watched_ts']) {
-            $last_ad_time_unix = strtotime($user['last_ad_watched_ts']);
-            $ad_cooldown_seconds = AD_COOLDOWN_SECONDS;
-            if (($current_time_unix - $last_ad_time_unix) < $ad_cooldown_seconds) { echo json_encode(['success' => false, 'message' => 'Please wait for ad cooldown.', 'data' => $user]); exit; }
+        if ($user['ads_watched_today'] >= $user['max_ads_per_day']) {
+            sendJsonResponse(false, 'Daily ad limit reached.', $user);
         }
-        
-        $points_for_ad = POINTS_PER_AD;
-        $current_ts = getCurrentUtcTimestamp();
 
-        $stmt = $conn->prepare("UPDATE users SET points = points + ?, daily_ads_watched_count = daily_ads_watched_count + 1, last_ad_watched_ts = ? WHERE telegram_user_id = ?");
-        if (!$stmt) { echo json_encode(['success' => false, 'message' => 'Server error preparing ad watch.']); exit; }
-        $stmt->bind_param("isi", $points_for_ad, $current_ts, $telegram_user_id);
-        if ($stmt->execute()) {
-            $stmt->close();
-            echo json_encode(['success' => true, 'message' => "Ad reward! +{$points_for_ad} points.", 'points_earned' => $points_for_ad, 'data' => getUserData($conn, $telegram_user_id)]);
+        // Check ad cooldown (3 minutes)
+        if ($user['last_ad_watched_timestamp']) {
+            $lastAdTime = strtotime($user['last_ad_watched_timestamp']);
+            $currentTime = time();
+            if (($currentTime - $lastAdTime) < (AD_COOLDOWN_MINUTES * 60)) {
+                $cooldownRemaining = (AD_COOLDOWN_MINUTES * 60) - ($currentTime - $lastAdTime);
+                $user['next_ad_available_at'] = date('Y-m-d H:i:s', $currentTime + $cooldownRemaining);
+                sendJsonResponse(false, 'Please wait for ad cooldown.', $user);
+            }
+        }
+
+        $newPoints = $user['points'] + POINTS_PER_AD_WATCH;
+        $newAdsWatchedToday = $user['ads_watched_today'] + 1;
+        $currentUtcTimestamp = getCurrentUtcTimestamp();
+
+        $stmt = $pdo->prepare("UPDATE users SET points = ?, ads_watched_today = ?, last_ad_watched_timestamp = ? WHERE id = ?");
+        if ($stmt->execute([$newPoints, $newAdsWatchedToday, $currentUtcTimestamp, $user['id']])) {
+            $user['points'] = $newPoints;
+            $user['ads_watched_today'] = $newAdsWatchedToday;
+            $user['last_ad_watched_timestamp'] = $currentUtcTimestamp;
+            $user['next_ad_available_at'] = date('Y-m-d H:i:s', time() + (AD_COOLDOWN_MINUTES * 60));
+            sendJsonResponse(true, 'Ad reward claimed!', $user);
         } else {
-            echo json_encode(['success' => false, 'message' => 'Failed to record ad view.', 'data' => $user]);
-            $stmt->close();
+            sendJsonResponse(false, 'Failed to claim ad reward.', $user);
         }
         break;
 
     case 'request_withdrawal':
-        $telegram_user_id = isset($_POST['telegram_user_id']) ? (int)$_POST['telegram_user_id'] : 0;
-        if (!$telegram_user_id) { echo json_encode(['success' => false, 'message' => 'User ID required.']); exit; }
-        
-        $points_to_withdraw = isset($_POST['points_withdrawn']) ? (int)$_POST['points_withdrawn'] : 0;
-        $method = $_POST['method'] ?? '';
-        $details = $_POST['details'] ?? '';
+        if (!$user) sendJsonResponse(false, 'User not found.');
 
-        if (!in_array($points_to_withdraw, [85000, 160000, 300000])) { echo json_encode(['success' => false, 'message' => 'Invalid withdrawal amount.']); exit; }
-        if (empty($method) || empty($details)) { echo json_encode(['success' => false, 'message' => 'Payment method and details are required.']); exit; }
-        if (!in_array($method, ['UPI', 'Binance'])) { echo json_encode(['success' => false, 'message' => 'Invalid payment method.']); exit; }
+        $amount = isset($_GET['amount']) ? intval($_GET['amount']) : 0;
+        $method = isset($_GET['method']) ? trim($_GET['method']) : '';
+        $detailsJson = isset($_GET['details']) ? $_GET['details'] : '{}';
+        $details = json_decode($detailsJson, true);
 
-        $user = getUserData($conn, $telegram_user_id);
-        if (!$user) { echo json_encode(['success' => false, 'message' => 'User not found.']); exit; }
-        if ($user['points'] < $points_to_withdraw) { echo json_encode(['success' => false, 'message' => 'Insufficient points.', 'data' => $user]); exit; }
+        $validAmounts = [85000, 160000, 300000];
+        if (!in_array($amount, $validAmounts)) {
+            sendJsonResponse(false, 'Invalid withdrawal amount selected.', ['user_data' => $user]);
+        }
+        if (empty($method) || !in_array($method, ['UPI', 'Binance'])) {
+            sendJsonResponse(false, 'Invalid withdrawal method.', ['user_data' => $user]);
+        }
+        if (empty($details)) {
+            sendJsonResponse(false, 'Withdrawal details are required.', ['user_data' => $user]);
+        }
+        if ($method === 'UPI' && empty($details['upi_id'])) {
+             sendJsonResponse(false, 'UPI ID is required for UPI withdrawal.', ['user_data' => $user]);
+        }
+        if ($method === 'Binance' && empty($details['binance_address'])) {
+             sendJsonResponse(false, 'Binance Address is required for Binance withdrawal.', ['user_data' => $user]);
+        }
 
-        $conn->begin_transaction();
+
+        if ($user['points'] < $amount) {
+            sendJsonResponse(false, 'Insufficient points for withdrawal.', ['user_data' => $user]);
+        }
+
+        $pdo->beginTransaction();
         try {
-            $stmt_deduct = $conn->prepare("UPDATE users SET points = points - ? WHERE telegram_user_id = ? AND points >= ?");
-            if (!$stmt_deduct) throw new Exception("Prepare deduct failed");
-            $stmt_deduct->bind_param("iii", $points_to_withdraw, $telegram_user_id, $points_to_withdraw);
-            $stmt_deduct->execute();
+            // Deduct points
+            $newPoints = $user['points'] - $amount;
+            $updatePointsStmt = $pdo->prepare("UPDATE users SET points = ? WHERE id = ? AND points >= ?");
+            $updatePointsStmt->execute([$newPoints, $user['id'], $amount]);
 
-            if ($stmt_deduct->affected_rows > 0) {
-                $stmt_deduct->close();
-                $stmt_insert_withdrawal = $conn->prepare("INSERT INTO withdrawals (telegram_user_id, points_withdrawn, method, details, status) VALUES (?, ?, ?, ?, 'pending')");
-                if (!$stmt_insert_withdrawal) throw new Exception("Prepare insert withdrawal failed");
-                $stmt_insert_withdrawal->bind_param("iisss", $telegram_user_id, $points_to_withdraw, $method, $details);
-                $stmt_insert_withdrawal->execute();
-                $stmt_insert_withdrawal->close();
-                
-                $conn->commit();
-                echo json_encode(['success' => true, 'message' => 'Withdrawal request submitted.', 'data' => getUserData($conn, $telegram_user_id)]);
-            } else {
-                $stmt_deduct->close();
-                $conn->rollback();
-                echo json_encode(['success' => false, 'message' => 'Withdrawal failed. Points may have changed.', 'data' => getUserData($conn, $telegram_user_id)]);
+            if ($updatePointsStmt->rowCount() == 0) {
+                $pdo->rollBack(); // Should not happen if initial check passed, but good for concurrency
+                sendJsonResponse(false, 'Failed to deduct points. Insufficient balance or error.', ['user_data' => $user]);
             }
+
+            // Insert withdrawal request
+            $insertWithdrawalStmt = $pdo->prepare("
+                INSERT INTO withdrawals (user_id, points_withdrawn, method, details, status) 
+                VALUES (?, ?, ?, ?, 'pending')
+            ");
+            $insertWithdrawalStmt->execute([$user['id'], $amount, $method, $detailsJson]);
+            
+            $pdo->commit();
+            $user['points'] = $newPoints; // Update user object for response
+            sendJsonResponse(true, 'Withdrawal request submitted successfully.', ['user_data' => $user]);
+
         } catch (Exception $e) {
-            $conn->rollback();
-            error_log("Withdrawal error for user $telegram_user_id: " . $e->getMessage());
-            echo json_encode(['success' => false, 'message' => 'An error occurred processing withdrawal.']);
+            $pdo->rollBack();
+            error_log("Withdrawal error: " . $e->getMessage());
+            sendJsonResponse(false, 'An error occurred during withdrawal request. Please try again.', ['user_data' => $user]);
         }
         break;
 
+    case 'get_withdrawal_history':
+        if (!$user) sendJsonResponse(false, 'User not found.');
+        $stmt = $pdo->prepare("SELECT points_withdrawn, method, status, requested_at FROM withdrawals WHERE user_id = ? ORDER BY requested_at DESC LIMIT 20");
+        $stmt->execute([$user['id']]);
+        $history = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        sendJsonResponse(true, 'Withdrawal history fetched.', $history);
+        break;
+
     default:
-        echo json_encode(['success' => false, 'message' => 'Invalid action specified.']);
+        sendJsonResponse(false, 'Invalid action specified.');
         break;
 }
 
-if ($conn) {
-    $conn->close();
-}
 ?>
