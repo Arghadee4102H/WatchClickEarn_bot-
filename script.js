@@ -1,22 +1,19 @@
 // script.js
 document.addEventListener('DOMContentLoaded', () => {
     const tg = window.Telegram.WebApp;
-    tg.expand(); // Expand the web app to full height
+    tg.expand();
 
-    // --- Globals ---
     const API_URL = 'api.php';
     let userData = null;
     let currentEnergyInterval = null;
     let adCooldownInterval = null;
     let monetagZoneId = '9321934'; // Your Monetag Zone ID
 
-    // --- UI Elements ---
     const loader = document.getElementById('loader');
     const appContainer = document.getElementById('app-container');
     const pages = document.querySelectorAll('.page');
     const navButtons = document.querySelectorAll('.nav-btn');
 
-    // Profile Page Elements
     const profileUsername = document.getElementById('profile-username');
     const profileTgId = document.getElementById('profile-tg-id');
     const profileUniqueId = document.getElementById('profile-unique-id');
@@ -27,9 +24,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const profileTotalReferrals = document.getElementById('profile-total-referrals');
     const themeSelect = document.getElementById('theme-select');
 
-    // Tap Page Elements
     const tapCat = document.getElementById('tap-cat');
-    const catImage = document.getElementById('cat-image'); // For effects
+    const catImage = document.getElementById('cat-image');
     const tapPointsDisplay = document.getElementById('tap-points');
     const energyValueDisplay = document.getElementById('energy-value');
     const maxEnergyValueDisplay = document.getElementById('max-energy-value');
@@ -37,11 +33,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const dailyTapsLeftDisplay = document.getElementById('daily-taps-left');
     const tapMessage = document.getElementById('tap-message');
 
-    // Task Page Elements
     const taskListDiv = document.getElementById('task-list');
     const taskMessage = document.getElementById('task-message');
 
-    // Ads Page Elements
     const adsPointsReward = document.getElementById('ads-points-reward');
     const adsWatchedToday = document.getElementById('ads-watched-today');
     const adsMaxDaily = document.getElementById('ads-max-daily');
@@ -49,7 +43,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const adStatusMessage = document.getElementById('ad-status-message');
     const adCooldownTimerDisplay = document.getElementById('ad-cooldown-timer');
 
-    // Withdraw Page Elements
     const withdrawCurrentPoints = document.getElementById('withdraw-current-points');
     const withdrawButtons = document.querySelectorAll('.withdraw-btn');
     const withdrawForm = document.getElementById('withdraw-form');
@@ -61,64 +54,57 @@ document.addEventListener('DOMContentLoaded', () => {
     const submitWithdrawalBtn = document.getElementById('submit-withdrawal-btn');
     const withdrawMessage = document.getElementById('withdraw-message');
 
-    // --- Initialization ---
     async function initializeApp() {
         showLoader(true);
         try {
             if (!tg.initDataUnsafe || !tg.initDataUnsafe.user) {
-                handleError("Telegram user data not available. Please open this app through Telegram.");
-                showLoader(false);
-                // Potentially hide app container or show a message
-                appContainer.innerHTML = "<p style='text-align:center; padding-top: 50px;'>Error: Could not load user data. Ensure you are using the latest version of Telegram and try again.</p>";
-                appContainer.style.display = 'block';
+                handleError("Telegram user data not available. Please open via Telegram.", true);
                 return;
             }
 
             const tgUser = tg.initDataUnsafe.user;
             const startParam = tg.initDataUnsafe.start_param || null;
 
-            // Backend call to login/register user
             const response = await apiCall('init_user', {
                 telegram_user_id: tgUser.id,
                 username: tgUser.username || null,
-                first_name: tgUser.first_name || null,
+                first_name: tgUser.first_name || tgUser.username || `User${tgUser.id}`, // Fallback for first_name
                 referred_by_app_id: startParam
             });
 
             if (response.success && response.data) {
                 userData = response.data;
-                localStorage.setItem('userData', JSON.stringify(userData)); // Cache user data
+                localStorage.setItem('userData', JSON.stringify(userData));
                 updateAllUI();
                 startEnergyRefill();
                 loadTasks();
-                checkAdCooldown(); // Check initial ad cooldown state
+                checkAdCooldown();
+                loadTheme(); // Load theme after user data is available for potential theme colors
                 navigateToPage(localStorage.getItem('currentPage') || 'profile-page');
-                showLoader(false);
                 appContainer.style.display = 'flex';
             } else {
-                handleError(response.message || "Failed to initialize user.");
-                showLoader(false);
-                appContainer.innerHTML = `<p style='text-align:center; padding-top: 50px;'>Error: ${response.message || "Initialization failed."}. Please try again later.</p>`;
-                appContainer.style.display = 'block';
+                handleError(response.message || "Failed to initialize user.", true);
             }
         } catch (error) {
             console.error("Initialization error:", error);
-            handleError("An error occurred during initialization. Check console for details.");
+            handleError("An error occurred during initialization. Check console.", true);
+        } finally {
             showLoader(false);
-            appContainer.innerHTML = "<p style='text-align:center; padding-top: 50px;'>A critical error occurred. Please restart the app.</p>";
-            appContainer.style.display = 'block';
         }
-        loadTheme();
     }
 
-    // --- API Helper ---
     async function apiCall(action, data = {}) {
         try {
             const params = new URLSearchParams();
             params.append('action', action);
-            if (userData && userData.telegram_user_id) { // Send user ID if available for non-init actions
+            if (userData && userData.telegram_user_id && action !== 'init_user') { // Only add if not init and available
                 params.append('telegram_user_id', userData.telegram_user_id);
             }
+             // For init_user, telegram_user_id is part of the data payload
+            if (action === 'init_user' && data.telegram_user_id) {
+                // No need to append again, it's in 'data'
+            }
+
             for (const key in data) {
                 params.append(key, data[key]);
             }
@@ -127,39 +113,54 @@ document.addEventListener('DOMContentLoaded', () => {
                 method: 'POST',
                 body: params
             });
+
+            const responseText = await response.text(); // Get raw text first
             if (!response.ok) {
-                // Try to parse error from server if JSON, otherwise use status text
-                let errorMsg = `HTTP error! status: ${response.status}`;
-                try {
-                    const errorData = await response.json();
-                    errorMsg = errorData.message || errorMsg;
-                } catch (e) { /* ignore parsing error */ }
-                throw new Error(errorMsg);
+                throw new Error(`HTTP error! Status: ${response.status}. Response: ${responseText}`);
             }
-            return await response.json();
+
+            try {
+                return JSON.parse(responseText); // Try to parse as JSON
+            } catch (e) {
+                // This is where the "Unexpected token '<'" error happens client-side
+                console.error("Failed to parse JSON response:", responseText);
+                throw new Error(`Invalid JSON response from server. Check server logs or API output. Content: ${responseText.substring(0,200)}...`);
+            }
+
         } catch (error) {
             console.error(`API call failed for action ${action}:`, error);
-            // Return a structured error to be handled by the caller
-            return { success: false, message: error.message || "Network error or server is unreachable." };
+            // Display a user-friendly message for network errors
+            if (error.message.startsWith("Invalid JSON response")) {
+                 handleError(error.message, false); // Show the raw content hint
+            } else if (error.message.startsWith("HTTP error!")) {
+                 handleError(`Server communication error. Please try again. (${error.message.split('.')[0]})`, false);
+            }
+            else {
+                 handleError("Network error or server unreachable. Please check your connection.", false);
+            }
+            return { success: false, message: error.message || "API call failed." };
         }
     }
 
-    // --- UI Update Functions ---
     function updateAllUI() {
         if (!userData) return;
         updateProfileUI();
         updateTapUI();
-        updateAdsUI(); // Also updates ads points reward
+        updateAdsUI();
         updateWithdrawUI();
+        // Update global point displays if they exist outside sections
+        document.querySelectorAll('.global-points-display').forEach(el => el.textContent = formatPoints(userData.points));
     }
 
     function updateProfileUI() {
-        profileUsername.textContent = userData.username || userData.first_name || 'User';
+        profileUsername.textContent = userData.first_name || userData.username || 'User';
         profileTgId.textContent = userData.telegram_user_id;
         profileUniqueId.textContent = userData.unique_app_id;
-        profileJoinDate.textContent = new Date(userData.created_at).toLocaleDateString();
+        profileJoinDate.textContent = userData.created_at ? new Date(userData.created_at).toLocaleDateString() : 'N/A';
         profilePoints.textContent = formatPoints(userData.points);
-        profileReferralLink.value = `https://t.me/WatchClickEarn_bot?start=${userData.unique_app_id}`; // Replace with your bot username
+        // ---- IMPORTANT: Replace 'YourBotUsername' with your actual bot username ----
+        profileReferralLink.value = `https://t.me/WatchClickEarn_bot?start=${userData.unique_app_id}`;
+        // -----------------------------------------------------------------------
         profileTotalReferrals.textContent = userData.total_referrals_verified;
     }
 
@@ -168,14 +169,15 @@ document.addEventListener('DOMContentLoaded', () => {
         energyValueDisplay.textContent = Math.floor(userData.energy);
         maxEnergyValueDisplay.textContent = userData.max_energy;
         const energyPercentage = (userData.energy / userData.max_energy) * 100;
-        energyFill.style.width = `${energyPercentage}%`;
-        dailyTapsLeftDisplay.textContent = userData.max_daily_taps - userData.daily_taps;
+        energyFill.style.width = `${Math.max(0, Math.min(100, energyPercentage))}%`;
+        dailyTapsLeftDisplay.textContent = Math.max(0, userData.max_daily_taps - userData.daily_taps);
     }
 
     function updateAdsUI() {
         adsPointsReward.textContent = userData.points_per_ad || 50;
         adsWatchedToday.textContent = userData.daily_ads_watched_count;
         adsMaxDaily.textContent = userData.max_daily_ads;
+        watchAdBtn.disabled = userData.daily_ads_watched_count >= userData.max_daily_ads;
     }
 
     function updateWithdrawUI() {
@@ -186,32 +188,32 @@ document.addEventListener('DOMContentLoaded', () => {
         return Number(points).toLocaleString();
     }
 
-    // --- Navigation ---
     function navigateToPage(pageId) {
         pages.forEach(page => page.classList.remove('active'));
         navButtons.forEach(btn => btn.classList.remove('active'));
-
         const targetPage = document.getElementById(pageId);
         const targetButton = document.querySelector(`.nav-btn[data-page="${pageId}"]`);
-
         if (targetPage) targetPage.classList.add('active');
         if (targetButton) targetButton.classList.add('active');
-        localStorage.setItem('currentPage', pageId); // Remember last page
+        localStorage.setItem('currentPage', pageId);
+        window.scrollTo(0, 0); // Scroll to top of new page
     }
 
     navButtons.forEach(button => {
-        button.addEventListener('click', () => {
-            navigateToPage(button.dataset.page);
-        });
+        button.addEventListener('click', () => navigateToPage(button.dataset.page));
     });
 
-    // --- Theme Switcher ---
     function applyTheme(themeName) {
         document.body.className = `theme-${themeName}`;
         localStorage.setItem('theme', themeName);
-        themeSelect.value = themeName; // Sync dropdown
-        tg.setHeaderColor(getThemeColor(themeName, 'nav-bg')); // Optional: Sync Telegram header
-        tg.setBackgroundColor(getThemeColor(themeName, 'bg-color')); // Optional: Sync Telegram background
+        themeSelect.value = themeName;
+        const colors = {
+            light: { header: '#f8f9fa', background: '#ffffff' },
+            dark: { header: '#1e1e1e', background: '#121212' },
+            blue: { header: '#b3e5fc', background: '#e0f2f7' }
+        };
+        tg.setHeaderColor(colors[themeName].header);
+        tg.setBackgroundColor(colors[themeName].background);
     }
 
     function loadTheme() {
@@ -219,116 +221,73 @@ document.addEventListener('DOMContentLoaded', () => {
         applyTheme(savedTheme);
     }
 
-    themeSelect.addEventListener('change', (e) => {
-        applyTheme(e.target.value);
-    });
-    
-    function getThemeColor(themeName, colorType) {
-        // Simplified: assumes CSS vars are accessible or hardcode main colors
-        if (themeName === 'dark') return colorType === 'nav-bg' ? '#1e1e1e' : '#121212';
-        if (themeName === 'blue') return colorType === 'nav-bg' ? '#b3e5fc' : '#e0f2f7';
-        return colorType === 'nav-bg' ? '#f8f9fa' : '#ffffff'; // Light
-    }
+    themeSelect.addEventListener('change', (e) => applyTheme(e.target.value));
 
-
-    // --- Profile Page Logic ---
     copyReferralBtn.addEventListener('click', () => {
         profileReferralLink.select();
+        profileReferralLink.setSelectionRange(0, 99999); // For mobile devices
         try {
             document.execCommand('copy');
-            alert('Referral link copied!');
+            showTemporaryMessage(tapMessage, 'Referral link copied!', 'success', 2000); // Use tapMessage or a dedicated profile message element
+            tg.HapticFeedback.notificationOccurred('success');
         } catch (err) {
-            alert('Failed to copy link. Please copy manually.');
+            alert('Failed to copy. Please copy manually.');
         }
-         // For Telegram Web Apps, a more native way might be available or just show a success message
-        tg.HapticFeedback.notificationOccurred('success');
     });
 
-
-    // --- Tap Page Logic ---
     let lastTapTime = 0;
-    const TAP_DEBOUNCE_MS = 100; // Minimum time between client-side taps
+    const TAP_DEBOUNCE_MS = 50; // Reduced debounce
 
     tapCat.addEventListener('click', async () => {
         const now = Date.now();
-        if (now - lastTapTime < TAP_DEBOUNCE_MS) {
-            // tapMessage.textContent = "Tapping too fast!";
-            return; // Debounce
-        }
+        if (now - lastTapTime < TAP_DEBOUNCE_MS) return;
         lastTapTime = now;
 
-        // Client-side optimistic update
         if (userData.energy >= userData.energy_per_tap && (userData.max_daily_taps - userData.daily_taps) > 0) {
-            // userData.energy -= userData.energy_per_tap; // Optimistic decrement
-            // userData.daily_taps++; // Optimistic increment
-            // updateTapUI(); // Update UI immediately
-
-            // Visual feedback
-            catImage.style.transform = 'scale(0.9)';
-            setTimeout(() => catImage.style.transform = 'scale(1)', 100);
+            catImage.style.transform = 'scale(0.92)';
+            setTimeout(() => catImage.style.transform = 'scale(1)', 80);
             tg.HapticFeedback.impactOccurred('light');
 
-
-            const response = await apiCall('tap', { current_utc_time: new Date().toISOString() });
+            const response = await apiCall('tap');
             if (response.success && response.data) {
-                userData = response.data; // Update with server truth
-                updateAllUI(); // Full UI update based on server response
-                tapMessage.textContent = response.message || `+${response.points_earned || 0} Points!`;
+                userData = response.data;
+                updateAllUI();
+                showTemporaryMessage(tapMessage, response.message || `+${response.points_earned || 0} Points!`, 'success');
             } else {
-                // Revert optimistic update if server fails or denies
-                // This might involve fetching fresh user data if complex
-                // For now, just show server message
-                tapMessage.textContent = response.message || "Tap failed.";
-                if (response.data) { // If server sent updated data despite "failure" (e.g. out of energy)
-                    userData = response.data;
-                    updateAllUI();
-                }
+                 showTemporaryMessage(tapMessage, response.message || "Tap failed.", 'error');
+                if (response.data) { userData = response.data; updateAllUI(); } // Sync if server sent updated data anyway
             }
         } else if (userData.energy < userData.energy_per_tap) {
-            tapMessage.textContent = "Not enough energy!";
+            showTemporaryMessage(tapMessage, "Not enough energy!", 'error');
         } else {
-            tapMessage.textContent = "Daily tap limit reached!";
+            showTemporaryMessage(tapMessage, "Daily tap limit reached!", 'error');
         }
-        setTimeout(() => tapMessage.textContent = "", 2000);
     });
 
     function startEnergyRefill() {
         if (currentEnergyInterval) clearInterval(currentEnergyInterval);
         currentEnergyInterval = setInterval(async () => {
             if (userData && userData.energy < userData.max_energy) {
-                // Client-side visual refill (minor increment)
-                // The server recalculates authoritatively on next action or periodic sync
-                const timeSinceLastUpdate = (Date.now() - new Date(userData.last_energy_update_ts).getTime()) / 1000;
-                const energyToRefill = Math.floor(timeSinceLastUpdate / userData.energy_refill_rate_seconds);
-
-                if (energyToRefill > 0) {
-                     // More robust: just call sync_user_data to get latest from server
-                    const response = await apiCall('sync_user_data');
-                    if (response.success && response.data) {
-                        userData = response.data;
-                        updateAllUI();
-                    }
+                const response = await apiCall('sync_user_data'); // More reliable to sync with server
+                if (response.success && response.data) {
+                    userData = response.data;
+                    updateTapUI(); // Only update tap UI to avoid full refresh if not needed
                 }
             }
-        }, 5000); // Check for refill every 5 seconds
+        }, 10000); // Sync energy every 10 seconds
     }
 
-
-    // --- Task Page Logic ---
     async function loadTasks() {
         const response = await apiCall('get_tasks');
-        taskListDiv.innerHTML = ''; // Clear previous tasks
+        taskListDiv.innerHTML = '';
         if (response.success && response.tasks) {
             if (response.tasks.length === 0) {
-                 taskListDiv.innerHTML = '<p>No tasks available at the moment. Check back later!</p>';
+                 taskListDiv.innerHTML = '<p style="text-align:center; margin-top:20px;">No tasks available. Check back later!</p>';
                  return;
             }
             response.tasks.forEach(task => {
                 const taskItem = document.createElement('div');
-                taskItem.classList.add('task-item');
-                if (task.completed_today) {
-                    taskItem.classList.add('completed');
-                }
+                taskItem.className = `task-item ${task.completed_today ? 'completed' : ''}`;
                 taskItem.innerHTML = `
                     <div class="task-info">
                         <h4>${task.title}</h4>
@@ -343,149 +302,121 @@ document.addEventListener('DOMContentLoaded', () => {
                 taskListDiv.appendChild(taskItem);
             });
 
-            document.querySelectorAll('.task-action button').forEach(button => {
+            taskListDiv.querySelectorAll('.task-action button:not(:disabled)').forEach(button => {
                 button.addEventListener('click', async (e) => {
-                    if (button.disabled) return;
                     const taskId = e.target.dataset.taskId;
                     const taskLink = e.target.dataset.taskLink;
-
-                    // Open link in Telegram's browser
                     tg.openLink(taskLink);
-
-                    // Assume completion after clicking for simplicity.
-                    // For real verification, you'd need more complex logic, possibly involving the bot.
-                    // We can add a small delay and then try to mark as complete.
-                    // Or better, let user confirm. For now, auto-complete after a delay.
                     button.disabled = true;
-                    button.textContent = 'Processing...';
+                    button.textContent = 'Verifying...';
 
-                    // Give some time for user to interact with the link.
-                    // This is a UX choice. Real verification is hard.
-                    await new Promise(resolve => setTimeout(resolve, 3000)); // 3 sec delay
+                    await new Promise(resolve => setTimeout(resolve, 4000)); // Verification delay
 
                     const completeResponse = await apiCall('complete_task', { task_id: taskId });
                     if (completeResponse.success) {
-                        taskMessage.textContent = completeResponse.message || `Task ${taskId} completed! +${completeResponse.points_earned} points.`;
-                        userData = completeResponse.data; // Update user data
+                        showTemporaryMessage(taskMessage, completeResponse.message || `Task completed! +${completeResponse.points_earned} points.`, 'success');
+                        userData = completeResponse.data;
                         updateAllUI();
                         loadTasks(); // Refresh task list
                     } else {
-                        taskMessage.textContent = completeResponse.message || "Failed to complete task.";
+                        showTemporaryMessage(taskMessage, completeResponse.message || "Task completion failed.", 'error');
                         button.disabled = false; // Re-enable if failed
                         button.textContent = 'Go to Task';
                     }
-                    setTimeout(() => taskMessage.textContent = "", 3000);
                 });
             });
         } else {
-            taskListDiv.innerHTML = `<p>${response.message || 'Could not load tasks.'}</p>`;
+            taskListDiv.innerHTML = `<p style="text-align:center; color:red;">${response.message || 'Could not load tasks.'}</p>`;
         }
     }
 
-    // --- Ads Page Logic ---
     function checkAdCooldown() {
-        if (!userData || !userData.last_ad_watched_ts) {
-            adCooldownTimerDisplay.textContent = "Ready";
-            watchAdBtn.disabled = false;
+        if (adCooldownInterval) clearInterval(adCooldownInterval);
+        if (!userData || !userData.last_ad_watched_ts || userData.daily_ads_watched_count >= userData.max_daily_ads) {
+            adCooldownTimerDisplay.textContent = userData && userData.daily_ads_watched_count >= userData.max_daily_ads ? "Daily limit reached" : "Ready";
+            watchAdBtn.disabled = userData && userData.daily_ads_watched_count >= userData.max_daily_ads;
             return;
         }
 
         const lastAdTime = new Date(userData.last_ad_watched_ts).getTime();
-        const adCooldownSeconds = userData.ad_cooldown_seconds || (3 * 60); // Default 3 minutes
-        const now = Date.now();
-        const timePassed = (now - lastAdTime) / 1000;
+        const adCooldownSeconds = userData.ad_cooldown_seconds || (3 * 60);
 
-        if (timePassed < adCooldownSeconds) {
-            watchAdBtn.disabled = true;
+        const updateTimer = () => {
+            const now = Date.now();
+            const timePassed = (now - lastAdTime) / 1000;
             let timeLeft = Math.ceil(adCooldownSeconds - timePassed);
-            if (adCooldownInterval) clearInterval(adCooldownInterval);
-            adCooldownInterval = setInterval(() => {
-                if (timeLeft <= 0) {
-                    clearInterval(adCooldownInterval);
-                    adCooldownTimerDisplay.textContent = "Ready";
-                    watchAdBtn.disabled = false;
-                } else {
-                    adCooldownTimerDisplay.textContent = `${Math.floor(timeLeft / 60)}m ${timeLeft % 60}s`;
-                    timeLeft--;
-                }
-            }, 1000);
-        } else {
-            adCooldownTimerDisplay.textContent = "Ready";
-            watchAdBtn.disabled = false;
-        }
+
+            if (timeLeft <= 0 || userData.daily_ads_watched_count >= userData.max_daily_ads) {
+                clearInterval(adCooldownInterval);
+                adCooldownTimerDisplay.textContent = userData.daily_ads_watched_count >= userData.max_daily_ads ? "Daily limit reached" : "Ready";
+                watchAdBtn.disabled = userData.daily_ads_watched_count >= userData.max_daily_ads;
+            } else {
+                adCooldownTimerDisplay.textContent = `${Math.floor(timeLeft / 60)}m ${timeLeft % 60}s`;
+                watchAdBtn.disabled = true;
+            }
+        };
+        updateTimer(); // Initial call
+        adCooldownInterval = setInterval(updateTimer, 1000);
     }
+
 
     watchAdBtn.addEventListener('click', () => {
         if (userData.daily_ads_watched_count >= userData.max_daily_ads) {
-            adStatusMessage.textContent = "Daily ad limit reached.";
-            setTimeout(() => adStatusMessage.textContent = "", 3000);
+            showTemporaryMessage(adStatusMessage, "Daily ad limit reached.", 'error');
             return;
         }
         
         watchAdBtn.disabled = true;
-        adStatusMessage.textContent = "Loading ad...";
+        showTemporaryMessage(adStatusMessage, "Loading ad...", 'neutral', 0); // Persistent until ad resolves
 
-        if (typeof show_9321934 === 'function') {
-            show_9321934() // Using Rewarded Interstitial as per user's code
+        if (typeof show_9321934 === 'function') { // Ensure Monetag SDK function exists
+            show_9321934() // Using Rewarded Interstitial
                 .then(async () => {
-                    adStatusMessage.textContent = "Ad watched! Claiming reward...";
                     tg.HapticFeedback.notificationOccurred('success');
-                    
                     const response = await apiCall('watched_ad');
                     if (response.success && response.data) {
                         userData = response.data;
-                        updateAllUI();
-                        checkAdCooldown(); // Re-check cooldown (should be active now)
-                        adStatusMessage.textContent = response.message || `+${response.points_earned} points!`;
+                        updateAllUI(); // This will call updateAdsUI and checkAdCooldown
+                        showTemporaryMessage(adStatusMessage, response.message || `+${response.points_earned} points!`, 'success');
                     } else {
-                        adStatusMessage.textContent = response.message || "Failed to record ad view.";
+                        showTemporaryMessage(adStatusMessage, response.message || "Failed to record ad view.", 'error');
                     }
                 })
                 .catch(e => {
                     console.error("Monetag Ad Error:", e);
-                    adStatusMessage.textContent = "Ad failed to load or was closed early.";
-                    // Re-enable button only if error suggests it (e.g., not a limit)
-                    // For simplicity, let cooldown logic handle re-enabling or keep it disabled
-                    // until cooldown passes or page reloads.
-                     watchAdBtn.disabled = false; // Or rely on checkAdCooldown
-                     checkAdCooldown(); // Better to rely on this
-                })
-                .finally(() => {
-                    setTimeout(() => adStatusMessage.textContent = "", 3000);
+                    showTemporaryMessage(adStatusMessage, "Ad failed or closed early.", 'error');
+                    // Re-enable button or let cooldown logic handle it. For now, force cooldown check.
+                    if(userData) checkAdCooldown(); else watchAdBtn.disabled = false;
                 });
         } else {
-            adStatusMessage.textContent = "Ad SDK not available.";
+            showTemporaryMessage(adStatusMessage, "Ad system not available.", 'error');
             console.error("Monetag function show_9321934 not found.");
             watchAdBtn.disabled = false; // Re-enable if SDK is missing
         }
     });
 
 
-    // --- Withdraw Page Logic ---
     withdrawButtons.forEach(button => {
         button.addEventListener('click', () => {
             const pointsToWithdraw = parseInt(button.dataset.points);
             if (userData.points < pointsToWithdraw) {
-                withdrawMessage.textContent = "Not enough points for this option.";
+                showTemporaryMessage(withdrawMessage, "Not enough points.", 'error');
                 tg.HapticFeedback.notificationOccurred('error');
-                setTimeout(() => withdrawMessage.textContent = "", 3000);
                 return;
             }
             withdrawAmountDisplay.textContent = formatPoints(pointsToWithdraw);
             withdrawPointsAmountInput.value = pointsToWithdraw;
             withdrawForm.style.display = 'block';
-            withdrawMessage.textContent = ""; // Clear previous messages
+            withdrawDetailsInput.value = ''; // Clear previous details
+            withdrawMessage.textContent = "";
+            withdrawMethodSelect.dispatchEvent(new Event('change')); // Trigger label update
         });
     });
 
     withdrawMethodSelect.addEventListener('change', () => {
-        if (withdrawMethodSelect.value === 'UPI') {
-            withdrawDetailsLabel.textContent = "UPI ID:";
-            withdrawDetailsInput.placeholder = "Enter your UPI ID";
-        } else if (withdrawMethodSelect.value === 'Binance') {
-            withdrawDetailsLabel.textContent = "Binance Pay ID:";
-            withdrawDetailsInput.placeholder = "Enter your Binance Pay ID";
-        }
+        const placeholderText = withdrawMethodSelect.value === 'UPI' ? "Enter your UPI ID" : "Enter your Binance Pay ID";
+        withdrawDetailsLabel.textContent = `${withdrawMethodSelect.value}:`;
+        withdrawDetailsInput.placeholder = placeholderText;
     });
 
     submitWithdrawalBtn.addEventListener('click', async () => {
@@ -494,12 +425,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const details = withdrawDetailsInput.value.trim();
 
         if (!details) {
-            withdrawMessage.textContent = "Please enter your payment details.";
+            showTemporaryMessage(withdrawMessage, `Please enter your ${method} details.`, 'error');
             return;
         }
 
         submitWithdrawalBtn.disabled = true;
-        withdrawMessage.textContent = "Processing withdrawal...";
+        showTemporaryMessage(withdrawMessage, "Processing withdrawal...", 'neutral', 0);
 
         const response = await apiCall('request_withdrawal', {
             points_withdrawn: points,
@@ -508,37 +439,55 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         if (response.success) {
-            withdrawMessage.textContent = response.message || "Withdrawal request submitted successfully!";
+            showTemporaryMessage(withdrawMessage, response.message || "Withdrawal request submitted!", 'success');
             tg.HapticFeedback.notificationOccurred('success');
-            if (response.data) { // Server should return updated user data
+            if (response.data) {
                 userData = response.data;
                 updateAllUI();
             }
-            withdrawForm.style.display = 'none'; // Hide form on success
-            withdrawDetailsInput.value = ''; // Clear details
+            withdrawForm.style.display = 'none';
         } else {
-            withdrawMessage.textContent = response.message || "Withdrawal request failed.";
+            showTemporaryMessage(withdrawMessage, response.message || "Withdrawal failed.", 'error');
             tg.HapticFeedback.notificationOccurred('error');
         }
-        setTimeout(() => withdrawMessage.textContent = "", 5000);
         submitWithdrawalBtn.disabled = false;
     });
 
-
-    // --- Helper Functions ---
     function showLoader(show) {
         loader.style.display = show ? 'flex' : 'none';
     }
-
-    function handleError(message) {
-        console.error("Error:", message);
-        // You could display this in a more prominent way if needed
-        // For now, console log is primary for non-user-facing errors
+    
+    let messageTimeout = null;
+    function showTemporaryMessage(element, message, type = 'neutral', duration = 3000) {
+        if (!element) return;
+        element.textContent = message;
+        element.className = 'message'; // Reset classes
+        if (type === 'success') element.classList.add('success');
+        else if (type === 'error') element.classList.add('error');
+        
+        if (messageTimeout) clearTimeout(messageTimeout);
+        if (duration > 0) { // If duration is 0, message stays until replaced
+            messageTimeout = setTimeout(() => {
+                element.textContent = "";
+                element.className = 'message'; // Clear type classes
+            }, duration);
+        }
     }
 
-    // --- Start the app ---
-    initializeApp();
+    function handleError(message, isFatal = false) {
+        console.error("App Error:", message);
+        showLoader(false); // Always hide loader on error
+        if (isFatal) {
+            appContainer.innerHTML = `<p style='text-align:center; padding: 50px 20px; color: red;'>Error: ${message}<br><br>Please try restarting the app. If the problem persists, contact support.</p>`;
+            appContainer.style.display = 'block'; // Ensure it's visible
+        } else {
+            // For non-fatal, maybe show in a specific error div or use a toast-like notification
+            // For now, we'll rely on console and specific message elements like tapMessage, adStatusMessage etc.
+            // If a general non-fatal error display is needed:
+            // const generalErrorDiv = document.getElementById('general-error-display');
+            // if(generalErrorDiv) showTemporaryMessage(generalErrorDiv, message, 'error', 5000);
+        }
+    }
 
-    // Expose some functions for debugging if needed (remove for production)
-    // window.app = { tg, userData, apiCall, updateAllUI, loadTasks };
+    initializeApp();
 });
