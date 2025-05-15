@@ -1,89 +1,101 @@
+:root {
+    --tg-theme-bg-color: #ffffff; /* Telegram default light bg */
+    --tg-theme-text-color: #000000; /* Telegram default light text */
+    --tg-theme-hint-color: #8e8e93; /* Telegram default light hint */
+    --tg-theme-link-color: #007aff; /* Telegram default light link */
+    --tg-theme-button-color: #007aff; /* Telegram default light button */
+    --tg-theme-button-text-color: #ffffff; /* Telegram default light button text */
+    --tg-theme-secondary-bg-color: #f0f2f5; /* Slightly off-white for cards/sections */
+
+    --primary-color: #007aff;
+    --accent-color: #ff9500;
+    --background-color: var(--tg-theme-bg-color);
+    --text-color: var(--tg-theme-text-color);
+    --secondary-text-color: var(--tg-theme-hint-color);
+    --container-bg-color: var(--tg-theme-secondary-bg-color);
+    --border-color: #e0e0e0;
+    --success-color: #34c759;
+    --error-color: #ff3b30;
+}
+
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     margin: 0;
-    background-color: var(--tg-theme-bg-color, #1c1c1d); /* Telegram theme background */
-    color: var(--tg-theme-text-color, #ffffff); /* Telegram theme text */
+    background-color: var(--background-color);
+    color: var(--text-color);
     display: flex;
     flex-direction: column;
     height: 100vh; /* Full viewport height */
-    overflow: hidden; /* Prevent body scroll, pages will scroll if needed */
-    -webkit-tap-highlight-color: transparent; /* Disable tap highlight */
+    overflow: hidden; /* Prevent scrolling on body itself */
+    -webkit-tap-highlight-color: transparent; /* Disable tap highlight on iOS */
 }
 
-#app-loader {
+.loader {
     display: flex;
+    flex-direction: column;
     justify-content: center;
     align-items: center;
     height: 100vh;
-    font-size: 1.2em;
-    color: var(--tg-theme-text-color, #ffffff);
+    background-color: var(--background-color);
+    color: var(--text-color);
 }
 
-#app-container {
+.spinner {
+    border: 4px solid rgba(0, 0, 0, 0.1);
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border-left-color: var(--primary-color);
+    animation: spin 1s ease infinite;
+    margin-bottom: 10px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.app-container {
     display: flex;
     flex-direction: column;
     height: 100%;
     width: 100%;
-    max-width: 700px; /* Max width for larger screens, common for webapps */
-    margin: 0 auto; /* Center on larger screens */
-    box-sizing: border-box;
+    overflow: hidden; /* Prevent app container from scrolling, pages will scroll */
 }
 
-header {
-    background-color: var(--tg-theme-secondary-bg-color, #2c2c2e);
+.app-header {
+    background-color: var(--container-bg-color);
     padding: 10px 15px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    border-bottom: 1px solid var(--tg-theme-hint-color, #48484a);
-    box-sizing: border-box;
+    border-bottom: 1px solid var(--border-color);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    flex-shrink: 0; /* Prevent header from shrinking */
 }
 
-.user-info {
-    font-size: 0.9em;
+.app-header .balance-info,
+.app-header .energy-info {
+    font-size: 1em;
+    font-weight: 500;
 }
 
-#points-display {
-    font-weight: bold;
+.energy-info {
+    color: var(--accent-color);
 }
 
-.energy-bar-container {
-    display: flex;
-    align-items: center;
-    font-size: 0.9em;
-}
-
-#energy-bar {
-    width: 80px;
-    height: 12px;
-    background-color: var(--tg-theme-hint-color, #555);
-    border-radius: 6px;
-    margin-right: 5px;
-    overflow: hidden;
-    border: 1px solid var(--tg-theme-hint-color, #777);
-}
-
-#energy-fill {
-    width: 100%; /* Controlled by JS */
-    height: 100%;
-    background-color: var(--tg-theme-button-color, #007aff); /* Energizing color */
-    border-radius: 5px;
-    transition: width 0.3s ease-in-out;
-}
-
-main#main-content {
-    flex-grow: 1;
-    overflow-y: auto; /* Allow scrolling within content area */
+.main-content {
+    flex-grow: 1; /* Takes up available space */
+    overflow-y: auto; /* Allows scrolling within main content */
     padding: 15px;
-    box-sizing: border-box;
 }
 
 .page {
-    display: none; /* Hidden by default */
+    display: none; /* Hidden by default, JS will show active page */
     animation: fadeIn 0.3s ease-in-out;
 }
 
-.page.active-page {
+.page.active {
     display: block;
 }
 
@@ -92,234 +104,264 @@ main#main-content {
     to { opacity: 1; transform: translateY(0); }
 }
 
-h2 {
-    color: var(--tg-theme-text-color, #fff);
+.page h2 {
     margin-top: 0;
-    border-bottom: 1px solid var(--tg-theme-hint-color, #444);
-    padding-bottom: 10px;
+    color: var(--primary-color);
+    font-size: 1.5em;
+    border-bottom: 2px solid var(--primary-color);
+    padding-bottom: 5px;
+    margin-bottom: 15px;
 }
-
-/* Tap Page Specifics */
-#tap-page {
-    text-align: center;
-}
-.tap-area {
-    margin-top: 20px;
-    margin-bottom: 20px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    flex-direction: column;
-}
-.image-wrapper { /* From user's example */
-    background: var(--tg-theme-secondary-bg-color, #2a2a2c);
-    padding: 15px;
-    border-radius: 20px; /* More rounded for a "coin" feel */
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
-    max-width: 250px; /* Adjust as needed */
-    max-height: 250px; /* Adjust as needed */
-    cursor: pointer;
-    user-select: none; /* Prevent image selection on tap */
-    transition: transform 0.05s ease-out;
-}
-.image-wrapper:active {
-    transform: scale(0.95);
-}
-.image-wrapper img {
-    max-width: 100%;
-    height: auto;
-    border-radius: 15px; /* Rounded corners for the image itself */
-    display: block;
-}
-.tap-feedback {
-    margin-top: 15px;
-    font-size: 1.1em;
-    font-weight: bold;
-    min-height: 1.5em; /* Reserve space to prevent layout jumps */
-    color: var(--tg-theme-button-color, #007aff);
-}
-
 
 /* Profile Page */
 .profile-details p {
     margin: 8px 0;
-    line-height: 1.6;
+    font-size: 1em;
+    line-height: 1.4;
 }
 .profile-details strong {
-    color: var(--tg-theme-link-color, #007aff);
+    color: var(--text-color);
 }
-#profile-referral-link {
-    width: calc(100% - 70px);
-    padding: 8px;
-    border: 1px solid var(--tg-theme-hint-color, #555);
-    background-color: var(--tg-theme-bg-color, #333);
-    color: var(--tg-theme-text-color, #fff);
-    border-radius: 4px;
-    margin-right: 5px;
-}
-#copy-referral-link {
-    padding: 8px 10px;
-    background-color: var(--tg-theme-button-color, #007aff);
-    color: var(--tg-theme-button-text-color, #fff);
+#copyReferralLink {
+    padding: 5px 10px;
+    font-size: 0.9em;
+    background-color: var(--tg-theme-button-color);
+    color: var(--tg-theme-button-text-color);
     border: none;
     border-radius: 4px;
     cursor: pointer;
 }
+
+/* Tap Page specific styling */
+.tap-zone {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    margin-top: 20px;
+}
+
+.image-wrapper { /* From user's provided CSS for rat image */
+    background: #ffffff;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+    max-width: 90%;
+    max-height: 90vh; /* Adjusted for better fit */
+    cursor: pointer;
+    user-select: none; /* Prevent image selection */
+    transition: transform 0.1s ease-out;
+}
+
+.image-wrapper:active {
+    transform: scale(0.95);
+}
+
+.image-wrapper img {
+    max-width: 100%;
+    height: auto;
+    max-height: 250px; /* Max height for the image */
+    border-radius: 8px;
+    display: block;
+}
+
+.click-feedback {
+    position: absolute; /* For +1 animation */
+    font-size: 24px;
+    font-weight: bold;
+    color: var(--accent-color);
+    opacity: 0;
+    animation: floatUp 0.6s ease-out;
+    pointer-events: none;
+}
+
+@keyframes floatUp {
+    0% { opacity: 1; transform: translateY(0); }
+    100% { opacity: 0; transform: translateY(-50px); }
+}
+
+
+.energy-bar-container {
+    width: 80%;
+    max-width: 300px;
+    height: 20px;
+    background-color: #e0e0e0;
+    border-radius: 10px;
+    margin-top: 20px;
+    overflow: hidden;
+}
+
+.energy-bar {
+    height: 100%;
+    width: 100%; /* Default to full */
+    background-color: var(--accent-color);
+    border-radius: 10px;
+    transition: width 0.5s ease;
+}
+
+#dailyClickLimit {
+    margin-top: 10px;
+    font-size: 0.9em;
+    color: var(--secondary-text-color);
+}
+
 
 /* Task Page */
-#task-list .task-item {
-    background-color: var(--tg-theme-secondary-bg-color, #2c2c2e);
+.task-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.task-item {
+    background-color: var(--container-bg-color);
     padding: 15px;
-    margin-bottom: 10px;
     border-radius: 8px;
-    border: 1px solid var(--tg-theme-hint-color, #444);
+    border: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
-.task-item h3 {
-    margin-top: 0;
-    margin-bottom: 5px;
-    color: var(--tg-theme-text-color, #fff);
+.task-item-info h4 {
+    margin: 0 0 5px 0;
+    font-size: 1.1em;
 }
-.task-item p {
-    margin-bottom: 10px;
+.task-item-info p {
+    margin: 0;
     font-size: 0.9em;
-    color: var(--tg-theme-subtitle-text-color, #aaa);
+    color: var(--secondary-text-color);
 }
-.task-item .task-reward {
-    font-weight: bold;
-    color: var(--tg-theme-link-color, #5cb85c); /* Green for reward */
-}
-.task-item button {
-    background-color: var(--tg-theme-button-color, #007aff);
-    color: var(--tg-theme-button-text-color, #fff);
-    border: none;
-    padding: 10px 15px;
-    border-radius: 5px;
-    cursor: pointer;
-    font-size: 0.9em;
-}
-.task-item button:disabled {
-    background-color: var(--tg-theme-hint-color, #555);
-    cursor: not-allowed;
-}
-.task-item .task-completed {
-    color: #4CAF50;
-    font-weight: bold;
-}
-
-
-/* Ads Page */
-#watch-ad-button {
-    padding: 12px 20px;
-    font-size: 1em;
-    background-color: var(--tg-theme-button-color, #007aff);
-    color: var(--tg-theme-button-text-color, #fff);
+.task-button {
+    padding: 8px 15px;
+    background-color: var(--tg-theme-button-color);
+    color: var(--tg-theme-button-text-color);
     border: none;
     border-radius: 5px;
     cursor: pointer;
-    margin-top: 10px;
-}
-#watch-ad-button:disabled {
-    background-color: var(--tg-theme-hint-color, #555);
-}
-#ad-cooldown-message {
-    margin-top: 10px;
-    color: var(--tg-theme-hint-color, #aaa);
-}
-
-/* Withdraw Page */
-#withdraw-form .form-group {
-    margin-bottom: 15px;
-}
-#withdraw-form label {
-    display: block;
-    margin-bottom: 5px;
     font-weight: 500;
 }
-#withdraw-form input[type="text"],
-#withdraw-form select {
-    width: 100%;
-    padding: 10px;
-    border: 1px solid var(--tg-theme-hint-color, #555);
-    background-color: var(--tg-theme-secondary-bg-color, #333);
-    color: var(--tg-theme-text-color, #fff);
-    border-radius: 4px;
-    box-sizing: border-box;
+.task-button:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
 }
-#withdraw-form button[type="submit"] {
-    background-color: var(--tg-theme-button-color, #007aff);
-    color: var(--tg-theme-button-text-color, #fff);
+
+/* Ads Page & Withdraw Page */
+.action-button {
+    display: block;
+    width: 100%;
+    max-width: 300px;
+    margin: 20px auto;
     padding: 12px 20px;
+    font-size: 1.1em;
+    background-color: var(--tg-theme-button-color);
+    color: var(--tg-theme-button-text-color);
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    text-align: center;
+}
+.action-button:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
+}
+
+.message {
+    text-align: center;
+    margin-top: 15px;
+    font-weight: 500;
+}
+.message.success { color: var(--success-color); }
+.message.error { color: var(--error-color); }
+
+/* Withdraw Page */
+.withdraw-options {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin-top: 20px;
+}
+.withdraw-option {
+    background-color: var(--container-bg-color);
+    padding: 15px;
+    border-radius: 8px;
+    text-align: center;
+    border: 1px solid var(--border-color);
+}
+.withdraw-option h3 {
+    margin-top: 0;
+    font-size: 1.2em;
+}
+.withdraw-button {
+    padding: 10px 15px;
+    background-color: var(--accent-color);
+    color: white;
     border: none;
     border-radius: 5px;
     cursor: pointer;
+    font-weight: 500;
+}
+
+#withdrawForm label {
+    display: block;
+    margin-top: 10px;
+    font-weight: 500;
+}
+#withdrawForm input, #withdrawForm select {
+    width: calc(100% - 22px);
+    padding: 10px;
+    margin-top: 5px;
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
     font-size: 1em;
 }
-#withdraw-form button[type="submit"]:disabled {
-     background-color: var(--tg-theme-hint-color, #555);
-}
-.feedback {
-    margin-top: 10px;
-    font-weight: bold;
-}
-.feedback.success { color: #4CAF50; }
-.feedback.error { color: #F44336; }
-
-#withdrawal-history-list .history-item {
-    background-color: var(--tg-theme-secondary-bg-color, #2c2c2e);
-    padding: 10px;
-    margin-bottom: 8px;
-    border-radius: 5px;
-    font-size: 0.9em;
-    border: 1px solid var(--tg-theme-hint-color, #444);
-}
-.history-item span { display: block; margin-bottom: 3px; }
-.history-item .status-pending { color: orange; }
-.history-item .status-completed { color: lightgreen; }
-.history-item .status-rejected { color: lightcoral; }
 
 
 /* Bottom Navigation */
-#bottom-nav {
+.bottom-nav {
     display: flex;
     justify-content: space-around;
-    background-color: var(--tg-theme-secondary-bg-color, #2c2c2e);
-    padding: 5px 0; /* Reduced padding */
-    border-top: 1px solid var(--tg-theme-hint-color, #48484a);
-    box-sizing: border-box;
-    position: sticky; /* Make it sticky if needed, or fixed */
+    background-color: var(--container-bg-color);
+    border-top: 1px solid var(--border-color);
+    padding: 5px 0;
+    position: sticky; /* Makes it stick to bottom if content is less */
     bottom: 0;
-    width: 100%;
+    left: 0;
+    right: 0;
+    flex-shrink: 0; /* Prevent nav from shrinking */
+    box-shadow: 0 -1px 3px rgba(0,0,0,0.05);
 }
 
-#bottom-nav button {
+.nav-button {
     background: none;
     border: none;
-    color: var(--tg-theme-hint-color, #8e8e93); /* Default icon color */
-    padding: 8px 5px; /* Adjust padding */
+    color: var(--secondary-text-color);
+    padding: 8px 5px; /* Adjusted padding */
     cursor: pointer;
-    font-size: 0.7em; /* Smaller text */
-    text-align: center;
-    flex-grow: 1; /* Distribute space evenly */
+    font-size: 0.75em; /* Smaller font size for text */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex-grow: 1; /* Distribute space equally */
+    max-width: 20%; /* Ensure buttons don't get too wide */
 }
-#bottom-nav button i {
-    display: block;
-    font-size: 1.4em; /* Icon size */
-    margin-bottom: 3px;
+.nav-button img {
+    width: 24px; /* Icon size */
+    height: 24px; /* Icon size */
+    margin-bottom: 2px; /* Space between icon and text */
 }
-#bottom-nav button.active {
-    color: var(--tg-theme-button-color, #007aff); /* Active icon color */
+.nav-button.active {
+    color: var(--primary-color);
+}
+.nav-button.active img {
+    filter: invert(39%) sepia(98%) saturate(1736%) hue-rotate(195deg) brightness(102%) contrast(101%); /* Color for active icon to match var(--primary-color) */
 }
 
 /* Responsive adjustments */
 @media (max-width: 360px) {
-    #bottom-nav button {
-        font-size: 0.6em; /* Even smaller text for very small screens */
+    .nav-button span {
+        font-size: 0.7em; /* Even smaller text on very small screens */
     }
-    #bottom-nav button i {
+    .page h2 {
         font-size: 1.3em;
-    }
-    .image-wrapper {
-        max-width: 200px;
-        max-height: 200px;
     }
 }
