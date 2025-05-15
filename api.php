@@ -194,7 +194,7 @@ function get_user_full_data($conn, $user_db_id) {
     $user['points_per_ad_config'] = POINTS_PER_AD;
     $user['max_ads_per_day_config'] = MAX_ADS_PER_DAY;
     $user['energy_regen_rate_per_minute_config'] = ENERGY_REGEN_RATE_PER_MINUTE;
-    $user['bot_username'] = BOT_USERNAME; // Send bot username for referral link
+    $user['WatchClickEarn_bot'] = BOT_USERNAME; // Send bot username for referral link
 
     // Ad cooldown status
     $user['ad_cooldown_active'] = false;
