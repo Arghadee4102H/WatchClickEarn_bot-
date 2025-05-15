@@ -6,10 +6,10 @@
     <title>Watch & Earn</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <!-- Monetag SDK -->
+    <!-- Monetag SDK - Ensure your Zone ID is correct -->
     <script src='//whephiwums.com/sdk.js' data-zone='9321934' data-sdk='show_9321934'></script>
 </head>
-<body class="theme-light"> <!-- Default theme -->
+<body class="theme-light">
 
     <div id="loader" class="loader-container">
         <div class="loader"></div>
@@ -46,7 +46,6 @@
                 <div class="tap-area">
                     <div id="tap-cat">
                         <img src="https://i.imgur.com/hzA03v7.png" alt="Tap Me!" id="cat-image" style="width:150px; height:150px; cursor: pointer;">
-                         <!-- Simple cat image, replace with your own -->
                     </div>
                     <p>Points: <span id="tap-points">0</span></p>
                 </div>
@@ -54,8 +53,8 @@
                     <span>Energy: <span id="energy-value">100</span>/<span id="max-energy-value">100</span></span>
                     <div class="energy-bar">
                         <div id="energy-fill"></div>
-                    エネルギー
                     </div>
+                    <span>Energy</span>
                 </div>
                 <p>Daily Taps Left: <span id="daily-taps-left">2500</span></p>
                 <p id="tap-message" class="message"></p>
@@ -116,11 +115,11 @@
         </main>
 
         <nav id="bottom-nav">
-            <button data-page="profile-page" class="nav-btn active"><img src="https://img.icons8.com/ios-glyphs/30/ffffff/user-male-circle.png" alt="Profile"/><span>Profile</span></button>
-            <button data-page="tap-page" class="nav-btn"><img src="https://img.icons8.com/ios-filled/30/ffffff/hand-cursor.png" alt="Tap"/><span>Tap</span></button>
-            <button data-page="task-page" class="nav-btn"><img src="https://img.icons8.com/ios-filled/30/ffffff/task.png" alt="Tasks"/><span>Tasks</span></button>
-            <button data-page="ads-page" class="nav-btn"><img src="https://img.icons8.com/ios-filled/30/ffffff/play-button-circled.png" alt="Ads"/><span>Ads</span></button>
-            <button data-page="withdraw-page" class="nav-btn"><img src="https://img.icons8.com/ios-filled/30/ffffff/wallet.png" alt="Withdraw"/><span>Withdraw</span></button>
+            <button data-page="profile-page" class="nav-btn active"><img src="https://img.icons8.com/ios-glyphs/30/000000/user-male-circle.png" alt="Profile"/><span>Profile</span></button>
+            <button data-page="tap-page" class="nav-btn"><img src="https://img.icons8.com/ios-filled/30/000000/hand-cursor.png" alt="Tap"/><span>Tap</span></button>
+            <button data-page="task-page" class="nav-btn"><img src="https://img.icons8.com/ios-filled/30/000000/task.png" alt="Tasks"/><span>Tasks</span></button>
+            <button data-page="ads-page" class="nav-btn"><img src="https://img.icons8.com/ios-filled/30/000000/play-button-circled.png" alt="Ads"/><span>Ads</span></button>
+            <button data-page="withdraw-page" class="nav-btn"><img src="https://img.icons8.com/ios-filled/30/000000/wallet.png" alt="Withdraw"/><span>Withdraw</span></button>
         </nav>
     </div>
 
