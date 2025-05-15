@@ -1,37 +1,52 @@
 <?php
-// Database configuration for InfinityFree
-define('DB_SERVER', 'sql305.infinityfree.com'); // Get this from InfinityFree MySQL Databases section
-define('DB_USERNAME', 'if0_38990174');      // Your InfinityFree username (or specific DB user if created)
-define('DB_PASSWORD', 'art454500'); // Your InfinityFree account password or DB password
-define('DB_NAME', 'if0_38990174_watchearn_db'); // Your database name
+// --- DATABASE CONFIGURATION ---
+// Replace with your InfinityFree MySQL details
+define('DB_HOST', 'sql100.infinityfree.com'); // e.g., sqlXXX.infinityfree.com
+define('DB_USER', 'if0_38992815');
+define('DB_PASS', 'arghadeep858066');
+define('DB_NAME', 'if0_38992815_watchearn_db'); // e.g., if0_38992815_watchearn_db
 
-// Attempt to connect to MySQL database
-try {
-    $pdo = new PDO("mysql:host=" . DB_SERVER . ";dbname=" . DB_NAME, DB_USERNAME, DB_PASSWORD);
-    // Set the PDO error mode to exception
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-    // Set character set
-    $pdo->exec("SET NAMES 'utf8mb4'");
-} catch(PDOException $e){
-    // Important: Do not echo detailed error messages in production
-    error_log("ERROR: Could not connect to database. " . $e->getMessage());
-    // Send a generic error response to the client
-    header('Content-Type: application/json');
-    http_response_code(500); // Internal Server Error
-    echo json_encode(['success' => false, 'message' => 'Database connection error. Please try again later.']);
-    exit; // Stop script execution
-}
-
-// --- Constants ---
+// --- APPLICATION CONFIGURATION ---
+define('BOT_USERNAME', 'WatchClickEarn_bot'); // Your Telegram Bot Username
 define('POINTS_PER_TAP', 1);
 define('POINTS_PER_REFERRAL', 20);
-define('POINTS_PER_AD_WATCH', 40);
-define('AD_COOLDOWN_MINUTES', 3);
-define('DEFAULT_MAX_ENERGY', 100);
-define('ENERGY_REFILL_RATE_PER_SECOND', 0.33); // Approx 1 energy every 3 seconds
+define('POINTS_PER_TASK', 50);
+define('POINTS_PER_AD', 40);
 define('MAX_CLICKS_PER_DAY', 2500);
 define('MAX_ADS_PER_DAY', 45);
+define('INITIAL_MAX_ENERGY', 100); // Default max energy for new users
+define('ENERGY_REGEN_RATE_PER_MINUTE', 20); // e.g., 20 energy per minute (1 per 3 sec)
+define('AD_COOLDOWN_MINUTES', 3); // Cooldown in minutes between watching ads
 
-// Telegram Bot Username (for referral links)
-define('TELEGRAM_BOT_USERNAME', 'WatchClickEarn_bot');
+// Timezone for daily resets (ALWAYS UTC for server-side logic)
+date_default_timezone_set('UTC');
+
+// Function to establish database connection
+function getDBConnection() {
+    $conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+    if ($conn->connect_error) {
+        // Log error, don't expose details to client
+        error_log("Connection failed: " . $conn->connect_error);
+        die(json_encode(['success' => false, 'message' => 'Database connection error. Please try again later.']));
+    }
+    $conn->set_charset("utf8mb4");
+    return $conn;
+}
+
+// IMPORTANT: Telegram WebApp Validation (Simplified for now)
+// For production, you MUST validate initData to prevent cheating
+// See: https://core.telegram.org/bots/webapps#validating-data-received-via-the-web-app
+function validateTelegramData($telegram_init_data_str) {
+    // This is a placeholder. Real validation is complex.
+    // You'd typically check the hash against your bot token.
+    // For this example, we'll parse it assuming it's valid if present.
+    if (empty($telegram_init_data_str)) {
+        return null;
+    }
+    parse_str($telegram_init_data_str, $initData);
+    if (isset($initData['user'])) {
+        return json_decode($initData['user'], true);
+    }
+    return null;
+}
 ?>
