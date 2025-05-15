@@ -1,140 +1,89 @@
-/* style.css */
-:root {
-    --bg-color-light: #ffffff;
-    --text-color-light: #333333;
-    --primary-color-light: #007bff;
-    --nav-bg-light: #f8f9fa;
-    --nav-text-light: #555555;
-    --nav-active-bg-light: #e9ecef;
-    --nav-active-text-light: #007bff;
-    --button-bg-light: #007bff;
-    --button-text-light: #ffffff;
-    --border-color-light: #dee2e6;
-    --energy-bar-bg-light: #e9ecef;
-    --energy-fill-light: #28a745;
-    --section-bg-light: #fff;
-    --icon-filter-light: invert(20%) sepia(10%) saturate(500%) hue-rotate(170deg) brightness(90%) contrast(90%); /* Darker icons for light theme */
-
-
-    --bg-color-dark: #121212;
-    --text-color-dark: #e0e0e0;
-    --primary-color-dark: #bb86fc;
-    --nav-bg-dark: #1e1e1e;
-    --nav-text-dark: #bbbbbb;
-    --nav-active-bg-dark: #333333;
-    --nav-active-text-dark: #bb86fc;
-    --button-bg-dark: #bb86fc;
-    --button-text-dark: #121212;
-    --border-color-dark: #333333;
-    --energy-bar-bg-dark: #333333;
-    --energy-fill-dark: #03dac6;
-    --section-bg-dark: #1e1e1e;
-    --icon-filter-dark: invert(90%) sepia(10%) saturate(100%) hue-rotate(180deg) brightness(100%) contrast(90%); /* Lighter icons for dark theme */
-
-    --bg-color-blue: #e0f2f7;
-    --text-color-blue: #0d47a1;
-    --primary-color-blue: #0277bd;
-    --nav-bg-blue: #b3e5fc;
-    --nav-text-blue: #01579b;
-    --nav-active-bg-blue: #81d4fa;
-    --nav-active-text-blue: #0d47a1;
-    --button-bg-blue: #0288d1;
-    --button-text-blue: #ffffff;
-    --border-color-blue: #4fc3f7;
-    --energy-bar-bg-blue: #81d4fa;
-    --energy-fill-blue: #00c853;
-    --section-bg-blue: #e1f5fe;
-    --icon-filter-blue: invert(15%) sepia(50%) saturate(2000%) hue-rotate(180deg) brightness(90%) contrast(100%); /* Colored icons for blue theme */
-
-    /* Default to light theme variables */
-    --bg-color: var(--bg-color-light);
-    --text-color: var(--text-color-light);
-    --primary-color: var(--primary-color-light);
-    --nav-bg: var(--nav-bg-light);
-    --nav-text: var(--nav-text-light);
-    --nav-active-bg: var(--nav-active-bg-light);
-    --nav-active-text: var(--nav-active-text-light);
-    --button-bg: var(--button-bg-light);
-    --button-text: var(--button-text-light);
-    --border-color: var(--border-color-light);
-    --energy-bar-bg: var(--energy-bar-bg-light);
-    --energy-fill-color: var(--energy-fill-light);
-    --section-bg: var(--section-bg-light);
-    --icon-filter: var(--icon-filter-light);
-}
-
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     margin: 0;
-    padding: 0;
-    background-color: var(--bg-color);
-    color: var(--text-color);
+    background-color: var(--tg-theme-bg-color, #1c1c1d); /* Telegram theme background */
+    color: var(--tg-theme-text-color, #ffffff); /* Telegram theme text */
     display: flex;
     flex-direction: column;
+    height: 100vh; /* Full viewport height */
+    overflow: hidden; /* Prevent body scroll, pages will scroll if needed */
+    -webkit-tap-highlight-color: transparent; /* Disable tap highlight */
+}
+
+#app-loader {
+    display: flex;
+    justify-content: center;
+    align-items: center;
     height: 100vh;
-    overflow: hidden;
-    transition: background-color 0.3s, color 0.3s;
+    font-size: 1.2em;
+    color: var(--tg-theme-text-color, #ffffff);
 }
-
-body.theme-dark {
-    --bg-color: var(--bg-color-dark);
-    --text-color: var(--text-color-dark);
-    --primary-color: var(--primary-color-dark);
-    --nav-bg: var(--nav-bg-dark);
-    --nav-text: var(--nav-text-dark);
-    --nav-active-bg: var(--nav-active-bg-dark);
-    --nav-active-text: var(--nav-active-text-dark);
-    --button-bg: var(--button-bg-dark);
-    --button-text: var(--button-text-dark);
-    --border-color: var(--border-color-dark);
-    --energy-bar-bg: var(--energy-bar-bg-dark);
-    --energy-fill-color: var(--energy-fill-dark);
-    --section-bg: var(--section-bg-dark);
-    --icon-filter: var(--icon-filter-dark);
-}
-
-body.theme-blue {
-    --bg-color: var(--bg-color-blue);
-    --text-color: var(--text-color-blue);
-    --primary-color: var(--primary-color-blue);
-    --nav-bg: var(--nav-bg-blue);
-    --nav-text: var(--nav-text-blue);
-    --nav-active-bg: var(--nav-active-bg-blue);
-    --nav-active-text: var(--nav-active-text-blue);
-    --button-bg: var(--button-bg-blue);
-    --button-text: var(--button-text-blue);
-    --border-color: var(--border-color-blue);
-    --energy-bar-bg: var(--energy-bar-bg-blue);
-    --energy-fill-color: var(--energy-fill-blue);
-    --section-bg: var(--section-bg-blue);
-    --icon-filter: var(--icon-filter-blue);
-}
-
 
 #app-container {
     display: flex;
     flex-direction: column;
     height: 100%;
     width: 100%;
+    max-width: 700px; /* Max width for larger screens, common for webapps */
+    margin: 0 auto; /* Center on larger screens */
+    box-sizing: border-box;
 }
 
-#main-content {
+header {
+    background-color: var(--tg-theme-secondary-bg-color, #2c2c2e);
+    padding: 10px 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--tg-theme-hint-color, #48484a);
+    box-sizing: border-box;
+}
+
+.user-info {
+    font-size: 0.9em;
+}
+
+#points-display {
+    font-weight: bold;
+}
+
+.energy-bar-container {
+    display: flex;
+    align-items: center;
+    font-size: 0.9em;
+}
+
+#energy-bar {
+    width: 80px;
+    height: 12px;
+    background-color: var(--tg-theme-hint-color, #555);
+    border-radius: 6px;
+    margin-right: 5px;
+    overflow: hidden;
+    border: 1px solid var(--tg-theme-hint-color, #777);
+}
+
+#energy-fill {
+    width: 100%; /* Controlled by JS */
+    height: 100%;
+    background-color: var(--tg-theme-button-color, #007aff); /* Energizing color */
+    border-radius: 5px;
+    transition: width 0.3s ease-in-out;
+}
+
+main#main-content {
     flex-grow: 1;
-    overflow-y: auto;
+    overflow-y: auto; /* Allow scrolling within content area */
     padding: 15px;
-    padding-bottom: 75px; /* Increased for nav text */
+    box-sizing: border-box;
 }
 
 .page {
-    display: none;
-    background-color: var(--section-bg); /* Uses themed section background */
-    padding: 15px; /* More padding within pages */
-    border-radius: 8px;
-    /* box-shadow: 0 2px 4px rgba(0,0,0,0.05); */ /* Optional subtle shadow */
-    margin-bottom: 10px;
+    display: none; /* Hidden by default */
     animation: fadeIn 0.3s ease-in-out;
 }
-.page.active {
+
+.page.active-page {
     display: block;
 }
 
@@ -144,270 +93,233 @@ body.theme-blue {
 }
 
 h2 {
-    color: var(--primary-color);
+    color: var(--tg-theme-text-color, #fff);
     margin-top: 0;
-    margin-bottom: 15px; /* More space below h2 */
+    border-bottom: 1px solid var(--tg-theme-hint-color, #444);
+    padding-bottom: 10px;
 }
 
-.loader-container {
+/* Tap Page Specifics */
+#tap-page {
+    text-align: center;
+}
+.tap-area {
+    margin-top: 20px;
+    margin-bottom: 20px;
     display: flex;
-    flex-direction: column;
     justify-content: center;
     align-items: center;
-    height: 100vh;
-    background-color: var(--bg-color);
-    color: var(--text-color);
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    z-index: 2000;
-}
-.loader {
-    border: 8px solid var(--border-color);
-    border-top: 8px solid var(--primary-color);
-    border-radius: 50%;
-    width: 60px;
-    height: 60px;
-    animation: spin 1s linear infinite;
-    margin-bottom: 20px;
-}
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-
-#bottom-nav {
-    display: flex;
-    justify-content: space-around;
-    background-color: var(--nav-bg);
-    padding: 8px 0; /* Slightly reduced padding */
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    width: 100%;
-    box-shadow: 0 -2px 5px rgba(0,0,0,0.1);
-    z-index: 1000;
-    border-top: 1px solid var(--border-color); /* Subtle top border */
-}
-
-.nav-btn {
-    background: none;
-    border: none;
-    color: var(--nav-text);
-    cursor: pointer;
-    padding: 5px 10px;
-    font-size: 11px; /* Slightly larger font for text below icon */
-    display: flex;
     flex-direction: column;
-    align-items: center;
-    transition: background-color 0.2s, color 0.2s;
-    flex: 1; /* Distribute space evenly */
-    text-align: center;
 }
-.nav-btn img {
-    width: 24px;
-    height: 24px;
-    margin-bottom: 3px; /* Space between icon and text */
-    filter: var(--icon-filter); /* Apply theme-based filter */
-    transition: filter 0.3s;
-}
-.nav-btn.active img { /* Active icon colored by primary color */
-    filter: brightness(0) saturate(100%) invert(48%) sepia(79%) saturate(2476%) hue-rotate(180deg) brightness(100%) contrast(100%); /* Default primary color filter */
-}
-body.theme-light .nav-btn.active img { filter: brightness(0) saturate(100%) invert(39%) sepia(97%) saturate(1508%) hue-rotate(191deg) brightness(102%) contrast(102%); } /* Light theme active */
-body.theme-dark .nav-btn.active img { filter: brightness(0) saturate(100%) invert(64%) sepia(50%) saturate(4800%) hue-rotate(225deg) brightness(100%) contrast(95%); } /* Dark theme active */
-body.theme-blue .nav-btn.active img { filter: brightness(0) saturate(100%) invert(25%) sepia(90%) saturate(1500%) hue-rotate(170deg) brightness(90%) contrast(100%); } /* Blue theme active */
-
-
-.nav-btn.active {
-    color: var(--nav-active-text);
-    /* background-color: var(--nav-active-bg); */ /* Removing background color for a cleaner look, active state by text and icon color */
-    /* border-radius: 5px; */
-}
-.nav-btn:focus {
-    outline: none;
-}
-
-.tap-area {
-    text-align: center;
-    margin-bottom: 20px;
-    margin-top: 20px; /* Add some top margin */
-}
-#tap-cat img {
+.image-wrapper { /* From user's example */
+    background: var(--tg-theme-secondary-bg-color, #2a2a2c);
+    padding: 15px;
+    border-radius: 20px; /* More rounded for a "coin" feel */
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
+    max-width: 250px; /* Adjust as needed */
+    max-height: 250px; /* Adjust as needed */
     cursor: pointer;
-    transition: transform 0.08s ease-out; /* Faster transition */
-    border-radius: 50%;
-    user-select: none;
-    -webkit-user-drag: none;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.1); /* Add a subtle shadow */
+    user-select: none; /* Prevent image selection on tap */
+    transition: transform 0.05s ease-out;
 }
-#tap-cat img:active {
-    transform: scale(0.92); /* Slightly more pronounced tap effect */
-    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+.image-wrapper:active {
+    transform: scale(0.95);
 }
-.energy-bar-container {
-    margin: 15px 0;
-    text-align: center; /* Center the text */
-}
-.energy-bar-container span {
+.image-wrapper img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 15px; /* Rounded corners for the image itself */
     display: block;
-    margin-bottom: 5px;
-    font-size: 0.9em;
 }
-.energy-bar {
-    width: 90%; /* Slightly less than full width */
-    margin: 0 auto; /* Center the bar */
-    height: 22px;
-    background-color: var(--energy-bar-bg);
-    border-radius: 11px;
-    overflow: hidden;
-    border: 1px solid var(--border-color);
-}
-#energy-fill {
-    height: 100%;
-    width: 100%;
-    background-color: var(--energy-fill-color);
-    border-radius: 10px; /* Keep radius full */
-    transition: width 0.3s ease-in-out;
+.tap-feedback {
+    margin-top: 15px;
+    font-size: 1.1em;
+    font-weight: bold;
+    min-height: 1.5em; /* Reserve space to prevent layout jumps */
+    color: var(--tg-theme-button-color, #007aff);
 }
 
-.profile-info p {
-    margin: 10px 0; /* Increased spacing */
-    word-break: break-all;
-    line-height: 1.5;
+
+/* Profile Page */
+.profile-details p {
+    margin: 8px 0;
+    line-height: 1.6;
+}
+.profile-details strong {
+    color: var(--tg-theme-link-color, #007aff);
 }
 #profile-referral-link {
-    padding: 8px; /* More padding */
-    border: 1px solid var(--border-color);
-    background-color: var(--bg-color);
-    color: var(--text-color);
+    width: calc(100% - 70px);
+    padding: 8px;
+    border: 1px solid var(--tg-theme-hint-color, #555);
+    background-color: var(--tg-theme-bg-color, #333);
+    color: var(--tg-theme-text-color, #fff);
     border-radius: 4px;
     margin-right: 5px;
 }
-#copy-referral-btn {
-    padding: 8px 12px;
-}
-.theme-switcher {
-    margin-top: 25px;
-    padding-top: 15px;
-    border-top: 1px solid var(--border-color);
-}
-#theme-select {
-    padding: 10px;
+#copy-referral-link {
+    padding: 8px 10px;
+    background-color: var(--tg-theme-button-color, #007aff);
+    color: var(--tg-theme-button-text-color, #fff);
+    border: none;
     border-radius: 4px;
-    border: 1px solid var(--border-color);
-    background-color: var(--bg-color);
-    color: var(--text-color);
-    width: 100%;
+    cursor: pointer;
 }
 
-.task-item {
-    background-color: var(--section-bg); /* Use main section bg for consistency */
+/* Task Page */
+#task-list .task-item {
+    background-color: var(--tg-theme-secondary-bg-color, #2c2c2e);
     padding: 15px;
-    margin-bottom: 12px;
-    border: 1px solid var(--border-color);
-    border-radius: 6px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    transition: transform 0.2s ease;
+    margin-bottom: 10px;
+    border-radius: 8px;
+    border: 1px solid var(--tg-theme-hint-color, #444);
 }
-.task-item:hover {
-    transform: translateY(-2px); /* Slight lift on hover */
+.task-item h3 {
+    margin-top: 0;
+    margin-bottom: 5px;
+    color: var(--tg-theme-text-color, #fff);
 }
-.task-item.completed {
-    opacity: 0.7;
+.task-item p {
+    margin-bottom: 10px;
+    font-size: 0.9em;
+    color: var(--tg-theme-subtitle-text-color, #aaa);
 }
-.task-item.completed .task-info h4 {
-    text-decoration: line-through;
+.task-item .task-reward {
+    font-weight: bold;
+    color: var(--tg-theme-link-color, #5cb85c); /* Green for reward */
 }
-.task-item.completed .task-action button {
-    background-color: #6c757d; /* Greyed out for completed */
+.task-item button {
+    background-color: var(--tg-theme-button-color, #007aff);
+    color: var(--tg-theme-button-text-color, #fff);
+    border: none;
+    padding: 10px 15px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.9em;
+}
+.task-item button:disabled {
+    background-color: var(--tg-theme-hint-color, #555);
     cursor: not-allowed;
 }
-.task-info p {
-    font-size: 0.9em;
-    color: var(--text-color);
-    opacity: 0.8;
-    margin: 5px 0 0 0;
-}
-.task-action button {
-    padding: 8px 15px;
-    font-size: 0.9em;
+.task-item .task-completed {
+    color: #4CAF50;
+    font-weight: bold;
 }
 
-button {
-    padding: 12px 18px;
-    background-color: var(--button-bg);
-    color: var(--button-text);
+
+/* Ads Page */
+#watch-ad-button {
+    padding: 12px 20px;
+    font-size: 1em;
+    background-color: var(--tg-theme-button-color, #007aff);
+    color: var(--tg-theme-button-text-color, #fff);
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    margin-top: 10px;
+}
+#watch-ad-button:disabled {
+    background-color: var(--tg-theme-hint-color, #555);
+}
+#ad-cooldown-message {
+    margin-top: 10px;
+    color: var(--tg-theme-hint-color, #aaa);
+}
+
+/* Withdraw Page */
+#withdraw-form .form-group {
+    margin-bottom: 15px;
+}
+#withdraw-form label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 500;
+}
+#withdraw-form input[type="text"],
+#withdraw-form select {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--tg-theme-hint-color, #555);
+    background-color: var(--tg-theme-secondary-bg-color, #333);
+    color: var(--tg-theme-text-color, #fff);
+    border-radius: 4px;
+    box-sizing: border-box;
+}
+#withdraw-form button[type="submit"] {
+    background-color: var(--tg-theme-button-color, #007aff);
+    color: var(--tg-theme-button-text-color, #fff);
+    padding: 12px 20px;
     border: none;
     border-radius: 5px;
     cursor: pointer;
     font-size: 1em;
+}
+#withdraw-form button[type="submit"]:disabled {
+     background-color: var(--tg-theme-hint-color, #555);
+}
+.feedback {
     margin-top: 10px;
-    transition: background-color 0.2s ease;
-}
-button:hover:not(:disabled) {
-    opacity: 0.9;
-}
-button:disabled {
-    background-color: #cccccc;
-    color: #666666;
-    cursor: not-allowed;
-}
-input[type="text"], select {
-    padding: 12px;
-    margin: 8px 0 15px 0;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    width: calc(100% - 26px);
-    background-color: var(--bg-color);
-    color: var(--text-color);
-    font-size: 1em;
-}
-label {
-    display: block;
-    margin-bottom: 3px;
-    font-weight: 500;
-}
-.message {
-    margin-top: 15px;
     font-weight: bold;
+}
+.feedback.success { color: #4CAF50; }
+.feedback.error { color: #F44336; }
+
+#withdrawal-history-list .history-item {
+    background-color: var(--tg-theme-secondary-bg-color, #2c2c2e);
     padding: 10px;
-    border-radius: 4px;
+    margin-bottom: 8px;
+    border-radius: 5px;
+    font-size: 0.9em;
+    border: 1px solid var(--tg-theme-hint-color, #444);
+}
+.history-item span { display: block; margin-bottom: 3px; }
+.history-item .status-pending { color: orange; }
+.history-item .status-completed { color: lightgreen; }
+.history-item .status-rejected { color: lightcoral; }
+
+
+/* Bottom Navigation */
+#bottom-nav {
+    display: flex;
+    justify-content: space-around;
+    background-color: var(--tg-theme-secondary-bg-color, #2c2c2e);
+    padding: 5px 0; /* Reduced padding */
+    border-top: 1px solid var(--tg-theme-hint-color, #48484a);
+    box-sizing: border-box;
+    position: sticky; /* Make it sticky if needed, or fixed */
+    bottom: 0;
+    width: 100%;
+}
+
+#bottom-nav button {
+    background: none;
+    border: none;
+    color: var(--tg-theme-hint-color, #8e8e93); /* Default icon color */
+    padding: 8px 5px; /* Adjust padding */
+    cursor: pointer;
+    font-size: 0.7em; /* Smaller text */
     text-align: center;
+    flex-grow: 1; /* Distribute space evenly */
 }
-.message.success {
-    background-color: #d4edda;
-    color: #155724;
-    border: 1px solid #c3e6cb;
+#bottom-nav button i {
+    display: block;
+    font-size: 1.4em; /* Icon size */
+    margin-bottom: 3px;
 }
-.message.error {
-    background-color: #f8d7da;
-    color: #721c24;
-    border: 1px solid #f5c6cb;
-}
-
-.withdraw-options .withdraw-option {
-    border: 1px solid var(--border-color);
-    padding: 15px;
-    margin-bottom: 10px;
-    border-radius: 5px;
-    background-color: var(--section-bg); /* Use section bg */
-}
-.withdraw-options .withdraw-option h4 {
-    margin-top: 0;
-    color: var(--primary-color);
-}
-#withdraw-form {
-    margin-top: 20px;
-    padding: 20px;
-    border: 1px solid var(--border-color);
-    border-radius: 5px;
-    background-color: var(--section-bg); /* Use section bg */
+#bottom-nav button.active {
+    color: var(--tg-theme-button-color, #007aff); /* Active icon color */
 }
 
-.hidden {
-    display: none !important;
+/* Responsive adjustments */
+@media (max-width: 360px) {
+    #bottom-nav button {
+        font-size: 0.6em; /* Even smaller text for very small screens */
+    }
+    #bottom-nav button i {
+        font-size: 1.3em;
+    }
+    .image-wrapper {
+        max-width: 200px;
+        max-height: 200px;
+    }
 }
