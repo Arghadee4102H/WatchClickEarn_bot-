@@ -1,0 +1,349 @@
+/* style.css */
+:root {
+    --bg-color-light: #ffffff;
+    --text-color-light: #333333;
+    --primary-color-light: #007bff;
+    --nav-bg-light: #f8f9fa;
+    --nav-text-light: #555555;
+    --nav-active-bg-light: #e9ecef;
+    --nav-active-text-light: #007bff;
+    --button-bg-light: #007bff;
+    --button-text-light: #ffffff;
+    --border-color-light: #dee2e6;
+    --energy-bar-bg-light: #e9ecef;
+    --energy-fill-light: #28a745;
+    --section-bg-light: #fff;
+
+    --bg-color-dark: #121212;
+    --text-color-dark: #e0e0e0;
+    --primary-color-dark: #bb86fc;
+    --nav-bg-dark: #1e1e1e;
+    --nav-text-dark: #bbbbbb;
+    --nav-active-bg-dark: #333333;
+    --nav-active-text-dark: #bb86fc;
+    --button-bg-dark: #bb86fc;
+    --button-text-dark: #121212;
+    --border-color-dark: #333333;
+    --energy-bar-bg-dark: #333333;
+    --energy-fill-dark: #03dac6;
+    --section-bg-dark: #1e1e1e;
+
+    --bg-color-blue: #e0f2f7;
+    --text-color-blue: #0d47a1;
+    --primary-color-blue: #0277bd;
+    --nav-bg-blue: #b3e5fc;
+    --nav-text-blue: #01579b;
+    --nav-active-bg-blue: #81d4fa;
+    --nav-active-text-blue: #0d47a1;
+    --button-bg-blue: #0288d1;
+    --button-text-blue: #ffffff;
+    --border-color-blue: #4fc3f7;
+    --energy-bar-bg-blue: #81d4fa;
+    --energy-fill-blue: #00c853;
+    --section-bg-blue: #e1f5fe;
+
+    /* Default to light theme variables */
+    --bg-color: var(--bg-color-light);
+    --text-color: var(--text-color-light);
+    --primary-color: var(--primary-color-light);
+    --nav-bg: var(--nav-bg-light);
+    --nav-text: var(--nav-text-light);
+    --nav-active-bg: var(--nav-active-bg-light);
+    --nav-active-text: var(--nav-active-text-light);
+    --button-bg: var(--button-bg-light);
+    --button-text: var(--button-text-light);
+    --border-color: var(--border-color-light);
+    --energy-bar-bg: var(--energy-bar-bg-light);
+    --energy-fill-color: var(--energy-fill-light);
+    --section-bg: var(--section-bg-light);
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    display: flex;
+    flex-direction: column;
+    height: 100vh; /* Full viewport height */
+    overflow: hidden; /* Prevent body scroll, pages will scroll */
+    transition: background-color 0.3s, color 0.3s;
+}
+
+body.theme-dark {
+    --bg-color: var(--bg-color-dark);
+    --text-color: var(--text-color-dark);
+    --primary-color: var(--primary-color-dark);
+    --nav-bg: var(--nav-bg-dark);
+    --nav-text: var(--nav-text-dark);
+    --nav-active-bg: var(--nav-active-bg-dark);
+    --nav-active-text: var(--nav-active-text-dark);
+    --button-bg: var(--button-bg-dark);
+    --button-text: var(--button-text-dark);
+    --border-color: var(--border-color-dark);
+    --energy-bar-bg: var(--energy-bar-bg-dark);
+    --energy-fill-color: var(--energy-fill-dark);
+    --section-bg: var(--section-bg-dark);
+}
+
+body.theme-blue {
+    --bg-color: var(--bg-color-blue);
+    --text-color: var(--text-color-blue);
+    --primary-color: var(--primary-color-blue);
+    --nav-bg: var(--nav-bg-blue);
+    --nav-text: var(--nav-text-blue);
+    --nav-active-bg: var(--nav-active-bg-blue);
+    --nav-active-text: var(--nav-active-text-blue);
+    --button-bg: var(--button-bg-blue);
+    --button-text: var(--button-text-blue);
+    --border-color: var(--border-color-blue);
+    --energy-bar-bg: var(--energy-bar-bg-blue);
+    --energy-fill-color: var(--energy-fill-blue);
+    --section-bg: var(--section-bg-blue);
+}
+
+
+#app-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    width: 100%;
+}
+
+#main-content {
+    flex-grow: 1;
+    overflow-y: auto; /* Allow content to scroll */
+    padding: 15px;
+    padding-bottom: 70px; /* Space for bottom nav */
+}
+
+.page {
+    display: none; /* Hidden by default */
+    background-color: var(--section-bg);
+    padding: 10px;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    animation: fadeIn 0.3s ease-in-out;
+}
+.page.active {
+    display: block;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+h2 {
+    color: var(--primary-color);
+    margin-top: 0;
+}
+
+/* Loader */
+.loader-container {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+}
+.loader {
+    border: 8px solid var(--border-color);
+    border-top: 8px solid var(--primary-color);
+    border-radius: 50%;
+    width: 60px;
+    height: 60px;
+    animation: spin 1s linear infinite;
+    margin-bottom: 20px;
+}
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+
+/* Bottom Navigation */
+#bottom-nav {
+    display: flex;
+    justify-content: space-around;
+    background-color: var(--nav-bg);
+    padding: 10px 0;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    box-shadow: 0 -2px 5px rgba(0,0,0,0.1);
+    z-index: 1000;
+}
+
+.nav-btn {
+    background: none;
+    border: none;
+    color: var(--nav-text);
+    cursor: pointer;
+    padding: 5px 10px;
+    font-size: 10px; /* Smaller font for text below icon */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    transition: background-color 0.2s, color 0.2s;
+}
+.nav-btn img {
+    width: 24px; /* Adjust icon size */
+    height: 24px;
+    margin-bottom: 4px;
+    /* Basic filter for theme consistency - can be improved with specific icons per theme */
+    filter: var(--bg-color-dark) brightness(0) invert(1); /* If icons are black */
+}
+body.theme-light .nav-btn img, body.theme-blue .nav-btn img {
+   filter: var(--text-color-light) brightness(0) invert(0.3); /* Adjust for light/blue themes */
+}
+body.theme-dark .nav-btn.active img, body.theme-light .nav-btn.active img, body.theme-blue .nav-btn.active img {
+    filter: var(--primary-color) brightness(0) saturate(100%) invert(39%) sepia(97%) saturate(1508%) hue-rotate(191deg) brightness(102%) contrast(102%); /* Colorize active icon */
+}
+
+
+.nav-btn.active {
+    color: var(--nav-active-text);
+    background-color: var(--nav-active-bg);
+    border-radius: 5px;
+}
+.nav-btn:focus {
+    outline: none;
+}
+
+
+/* Tap Page */
+.tap-area {
+    text-align: center;
+    margin-bottom: 20px;
+}
+#tap-cat img {
+    cursor: pointer;
+    transition: transform 0.1s ease-out;
+    border-radius: 50%; /* Make it round */
+    user-select: none; /* Prevent image selection */
+    -webkit-user-drag: none; /* Prevent image dragging */
+
+}
+#tap-cat img:active {
+    transform: scale(0.95);
+}
+.energy-bar-container {
+    margin-bottom: 15px;
+}
+.energy-bar {
+    width: 100%;
+    height: 20px;
+    background-color: var(--energy-bar-bg);
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+}
+#energy-fill {
+    height: 100%;
+    width: 100%; /* Default full */
+    background-color: var(--energy-fill-color);
+    border-radius: 10px 0 0 10px; /* Keep left radius if not full */
+    transition: width 0.5s ease-in-out;
+}
+
+/* Profile Page */
+.profile-info p {
+    margin: 8px 0;
+    word-break: break-all;
+}
+#profile-referral-link {
+    padding: 5px;
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-color);
+    color: var(--text-color);
+}
+.theme-switcher {
+    margin-top: 20px;
+}
+#theme-select {
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-color);
+    color: var(--text-color);
+}
+
+
+/* Task Page */
+.task-item {
+    background-color: var(--section-bg);
+    padding: 10px;
+    margin-bottom: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.task-item.completed {
+    opacity: 0.6;
+    text-decoration: line-through;
+}
+.task-item.completed .task-action button {
+    background-color: grey;
+    cursor: not-allowed;
+}
+.task-action button {
+    padding: 8px 12px;
+    background-color: var(--button-bg);
+    color: var(--button-text);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+/* Ads Page & Withdraw Page */
+button {
+    padding: 10px 15px;
+    background-color: var(--button-bg);
+    color: var(--button-text);
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 1em;
+    margin-top: 10px;
+}
+button:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
+}
+input[type="text"], select {
+    padding: 10px;
+    margin: 5px 0 10px 0;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    width: calc(100% - 22px); /* Full width minus padding and border */
+    background-color: var(--bg-color);
+    color: var(--text-color);
+}
+.message {
+    margin-top: 10px;
+    font-weight: bold;
+}
+.withdraw-options .withdraw-option {
+    border: 1px solid var(--border-color);
+    padding: 15px;
+    margin-bottom: 10px;
+    border-radius: 5px;
+}
+#withdraw-form {
+    margin-top: 20px;
+    padding: 15px;
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+}
+
+/* General Utility */
+.hidden {
+    display: none !important;
+}
