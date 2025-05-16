@@ -1,97 +1,91 @@
-:root {
-    --tg-theme-bg-color: #ffffff; /* Telegram default light bg */
-    --tg-theme-text-color: #000000; /* Telegram default light text */
-    --tg-theme-hint-color: #8e8e93; /* Telegram default light hint */
-    --tg-theme-link-color: #007aff; /* Telegram default light link */
-    --tg-theme-button-color: #007aff; /* Telegram default light button */
-    --tg-theme-button-text-color: #ffffff; /* Telegram default light button text */
-    --tg-theme-secondary-bg-color: #f0f2f5; /* Slightly off-white for cards/sections */
-
-    --primary-color: #007aff;
-    --accent-color: #ff9500;
-    --background-color: var(--tg-theme-bg-color);
-    --text-color: var(--tg-theme-text-color);
-    --secondary-text-color: var(--tg-theme-hint-color);
-    --container-bg-color: var(--tg-theme-secondary-bg-color);
-    --border-color: #e0e0e0;
-    --success-color: #34c759;
-    --error-color: #ff3b30;
-}
-
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     margin: 0;
-    background-color: var(--background-color);
-    color: var(--text-color);
+    padding: 0;
+    background-color: var(--tg-theme-bg-color, #f0f0f0);
+    color: var(--tg-theme-text-color, #000000);
     display: flex;
     flex-direction: column;
-    height: 100vh; /* Full viewport height */
-    overflow: hidden; /* Prevent scrolling on body itself */
-    -webkit-tap-highlight-color: transparent; /* Disable tap highlight on iOS */
+    height: 100vh;
+    overflow: hidden; /* Prevent scrolling of body */
+    touch-action: none; /* Prevent pull-to-refresh */
+}
+
+:root {
+    --theme-blue: #007bff; /* Telegram's blue */
+    --light-blue: #58a7ff;
+    --dark-blue: #0056b3;
+    --text-light: #ffffff;
+    --text-dark: #333333;
+    --border-color: #e0e0e0;
 }
 
 .loader {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
-    background-color: var(--background-color);
-    color: var(--text-color);
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 1.5em;
+    color: var(--theme-blue);
 }
 
-.spinner {
-    border: 4px solid rgba(0, 0, 0, 0.1);
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    border-left-color: var(--primary-color);
-    animation: spin 1s ease infinite;
-    margin-bottom: 10px;
-}
-
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-
-.app-container {
+#app-container {
     display: flex;
     flex-direction: column;
     height: 100%;
     width: 100%;
-    overflow: hidden; /* Prevent app container from scrolling, pages will scroll */
+    max-width: 600px; /* Max width for larger screens, common for web apps */
+    margin: 0 auto;
+    background-color: var(--tg-theme-secondary-bg-color, #ffffff);
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
 }
 
-.app-header {
-    background-color: var(--container-bg-color);
+header {
+    background-color: var(--theme-blue);
+    color: var(--text-light);
     padding: 10px 15px;
+    text-align: center;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.user-info {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    border-bottom: 1px solid var(--border-color);
-    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-    flex-shrink: 0; /* Prevent header from shrinking */
+    margin-bottom: 8px;
+    font-size: 0.9em;
 }
 
-.app-header .balance-info,
-.app-header .energy-info {
-    font-size: 1em;
-    font-weight: 500;
+.energy-bar-container {
+    font-size: 0.8em;
 }
 
-.energy-info {
-    color: var(--accent-color);
+.energy-bar {
+    width: 100%;
+    height: 10px;
+    background-color: rgba(255,255,255,0.3);
+    border-radius: 5px;
+    overflow: hidden;
+    margin-top: 5px;
 }
 
-.main-content {
-    flex-grow: 1; /* Takes up available space */
-    overflow-y: auto; /* Allows scrolling within main content */
+.energy-fill {
+    height: 100%;
+    background-color: var(--light-blue); /* Lighter blue for fill */
+    width: 100%; /* Default to full */
+    border-radius: 5px;
+    transition: width 0.3s ease-in-out;
+}
+
+main {
+    flex-grow: 1;
     padding: 15px;
+    overflow-y: auto; /* Allow content to scroll within main */
+    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
 }
 
 .page {
-    display: none; /* Hidden by default, JS will show active page */
+    display: none;
     animation: fadeIn 0.3s ease-in-out;
 }
 
@@ -104,264 +98,175 @@ body {
     to { opacity: 1; transform: translateY(0); }
 }
 
-.page h2 {
+h2 {
+    color: var(--theme-blue);
     margin-top: 0;
-    color: var(--primary-color);
-    font-size: 1.5em;
-    border-bottom: 2px solid var(--primary-color);
+    border-bottom: 2px solid var(--light-blue);
     padding-bottom: 5px;
-    margin-bottom: 15px;
+}
+
+/* Tap Page */
+.tap-area {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 20px 0;
+}
+
+#tap-cat-image {
+    width: 150px;
+    height: 150px;
+    border-radius: 50%;
+    cursor: pointer;
+    user-select: none; /* Prevent image selection */
+    -webkit-user-drag: none; /* Prevent image dragging */
+    transition: transform 0.1s ease-out;
+    border: 3px solid var(--theme-blue);
+}
+
+#tap-cat-image:active {
+    transform: scale(0.95);
 }
 
 /* Profile Page */
 .profile-details p {
     margin: 8px 0;
-    font-size: 1em;
-    line-height: 1.4;
+    line-height: 1.6;
 }
-.profile-details strong {
-    color: var(--text-color);
-}
-#copyReferralLink {
-    padding: 5px 10px;
-    font-size: 0.9em;
-    background-color: var(--tg-theme-button-color);
-    color: var(--tg-theme-button-text-color);
-    border: none;
+#profile-referral-link {
+    width: calc(100% - 70px);
+    padding: 8px;
+    border: 1px solid var(--border-color);
     border-radius: 4px;
-    cursor: pointer;
+    background-color: #f9f9f9;
 }
-
-/* Tap Page specific styling */
-.tap-zone {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    margin-top: 20px;
+#copy-referral-link {
+    padding: 8px 10px;
+    margin-left: 5px;
 }
-
-.image-wrapper { /* From user's provided CSS for rat image */
-    background: #ffffff;
-    padding: 20px;
-    border-radius: 12px;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
-    max-width: 90%;
-    max-height: 90vh; /* Adjusted for better fit */
-    cursor: pointer;
-    user-select: none; /* Prevent image selection */
-    transition: transform 0.1s ease-out;
-}
-
-.image-wrapper:active {
-    transform: scale(0.95);
-}
-
-.image-wrapper img {
-    max-width: 100%;
-    height: auto;
-    max-height: 250px; /* Max height for the image */
-    border-radius: 8px;
-    display: block;
-}
-
-.click-feedback {
-    position: absolute; /* For +1 animation */
-    font-size: 24px;
-    font-weight: bold;
-    color: var(--accent-color);
-    opacity: 0;
-    animation: floatUp 0.6s ease-out;
-    pointer-events: none;
-}
-
-@keyframes floatUp {
-    0% { opacity: 1; transform: translateY(0); }
-    100% { opacity: 0; transform: translateY(-50px); }
-}
-
-
-.energy-bar-container {
-    width: 80%;
-    max-width: 300px;
-    height: 20px;
-    background-color: #e0e0e0;
-    border-radius: 10px;
-    margin-top: 20px;
-    overflow: hidden;
-}
-
-.energy-bar {
-    height: 100%;
-    width: 100%; /* Default to full */
-    background-color: var(--accent-color);
-    border-radius: 10px;
-    transition: width 0.5s ease;
-}
-
-#dailyClickLimit {
-    margin-top: 10px;
-    font-size: 0.9em;
-    color: var(--secondary-text-color);
-}
-
 
 /* Task Page */
-.task-list {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-.task-item {
-    background-color: var(--container-bg-color);
-    padding: 15px;
-    border-radius: 8px;
+#task-list .task-item {
+    background-color: #f9f9f9;
     border: 1px solid var(--border-color);
+    padding: 10px;
+    margin-bottom: 10px;
+    border-radius: 5px;
     display: flex;
     justify-content: space-between;
     align-items: center;
 }
-.task-item-info h4 {
+.task-item h3 {
     margin: 0 0 5px 0;
     font-size: 1.1em;
+    color: var(--dark-blue);
 }
-.task-item-info p {
+.task-item p {
     margin: 0;
     font-size: 0.9em;
-    color: var(--secondary-text-color);
+    color: #555;
 }
-.task-button {
-    padding: 8px 15px;
-    background-color: var(--tg-theme-button-color);
-    color: var(--tg-theme-button-text-color);
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    font-weight: 500;
+.task-item a {
+    text-decoration: none;
+    color: var(--theme-blue);
+    font-weight: bold;
 }
-.task-button:disabled {
-    background-color: #cccccc;
-    cursor: not-allowed;
-}
-
-/* Ads Page & Withdraw Page */
-.action-button {
-    display: block;
-    width: 100%;
-    max-width: 300px;
-    margin: 20px auto;
-    padding: 12px 20px;
-    font-size: 1.1em;
-    background-color: var(--tg-theme-button-color);
-    color: var(--tg-theme-button-text-color);
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    text-align: center;
-}
-.action-button:disabled {
-    background-color: #cccccc;
-    cursor: not-allowed;
-}
-
-.message {
-    text-align: center;
-    margin-top: 15px;
-    font-weight: 500;
-}
-.message.success { color: var(--success-color); }
-.message.error { color: var(--error-color); }
 
 /* Withdraw Page */
-.withdraw-options {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 15px;
-    margin-top: 20px;
-}
-.withdraw-option {
-    background-color: var(--container-bg-color);
-    padding: 15px;
-    border-radius: 8px;
-    text-align: center;
-    border: 1px solid var(--border-color);
-}
-.withdraw-option h3 {
-    margin-top: 0;
-    font-size: 1.2em;
-}
-.withdraw-button {
-    padding: 10px 15px;
-    background-color: var(--accent-color);
-    color: white;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    font-weight: 500;
-}
-
-#withdrawForm label {
+#withdraw-form label,
+#withdraw-form input,
+#withdraw-form select,
+#withdraw-form button {
     display: block;
-    margin-top: 10px;
-    font-weight: 500;
+    width: 100%;
+    margin-bottom: 10px;
+    box-sizing: border-box;
 }
-#withdrawForm input, #withdrawForm select {
-    width: calc(100% - 22px);
+#withdraw-form input[type="radio"] {
+    width: auto;
+    display: inline-block;
+    margin-right: 5px;
+}
+.withdraw-option label {
+    display: inline-block; /* For radio buttons */
+    width: auto;
+    margin-right: 15px;
+}
+#withdraw-form input[type="text"],
+#withdraw-form select {
     padding: 10px;
-    margin-top: 5px;
     border: 1px solid var(--border-color);
-    border-radius: 5px;
-    font-size: 1em;
+    border-radius: 4px;
 }
 
+.feedback {
+    margin-top: 10px;
+    font-weight: bold;
+}
+.feedback.success {
+    color: green;
+}
+.feedback.error {
+    color: red;
+}
 
 /* Bottom Navigation */
-.bottom-nav {
+#bottom-nav {
     display: flex;
     justify-content: space-around;
-    background-color: var(--container-bg-color);
-    border-top: 1px solid var(--border-color);
-    padding: 5px 0;
-    position: sticky; /* Makes it stick to bottom if content is less */
-    bottom: 0;
-    left: 0;
-    right: 0;
-    flex-shrink: 0; /* Prevent nav from shrinking */
-    box-shadow: 0 -1px 3px rgba(0,0,0,0.05);
+    padding: 10px 0;
+    background-color: var(--tg-theme-secondary-bg-color, #f8f8f8);
+    border-top: 1px solid var(--tg-theme-hint-color, var(--border-color));
+    box-shadow: 0 -2px 4px rgba(0,0,0,0.05);
 }
 
-.nav-button {
+#bottom-nav button {
     background: none;
     border: none;
-    color: var(--secondary-text-color);
-    padding: 8px 5px; /* Adjusted padding */
+    color: var(--tg-theme-hint-color, #888);
+    font-size: 0.8em; /* Smaller font for nav items */
+    padding: 8px 5px; /* Adjust padding for smaller text */
     cursor: pointer;
-    font-size: 0.75em; /* Smaller font size for text */
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    flex-grow: 1; /* Distribute space equally */
-    max-width: 20%; /* Ensure buttons don't get too wide */
+    flex-grow: 1;
+    text-align: center;
+    transition: color 0.2s;
 }
-.nav-button img {
-    width: 24px; /* Icon size */
-    height: 24px; /* Icon size */
-    margin-bottom: 2px; /* Space between icon and text */
+
+#bottom-nav button.active {
+    color: var(--tg-theme-button-color, var(--theme-blue));
+    font-weight: bold;
 }
-.nav-button.active {
-    color: var(--primary-color);
+
+#bottom-nav button:hover {
+    color: var(--tg-theme-button-color, var(--theme-blue));
 }
-.nav-button.active img {
-    filter: invert(39%) sepia(98%) saturate(1736%) hue-rotate(195deg) brightness(102%) contrast(101%); /* Color for active icon to match var(--primary-color) */
+
+/* General Button Style */
+button {
+    background-color: var(--theme-blue);
+    color: var(--text-light);
+    border: none;
+    padding: 10px 15px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 1em;
+    transition: background-color 0.2s;
+}
+
+button:hover {
+    background-color: var(--dark-blue);
+}
+
+button:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
 }
 
 /* Responsive adjustments */
 @media (max-width: 360px) {
-    .nav-button span {
-        font-size: 0.7em; /* Even smaller text on very small screens */
-    }
-    .page h2 {
-        font-size: 1.3em;
-    }
+    header { padding: 8px 10px; }
+    .user-info { font-size: 0.8em; }
+    #bottom-nav button { font-size: 0.7em; padding: 6px 3px; }
+    h2 { font-size: 1.3em; }
+    #tap-cat-image { width: 120px; height: 120px; }
 }
