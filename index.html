@@ -3,112 +3,113 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Watch & Earn</title>
+    <title>WatchClickEarn</title>
     <link rel="stylesheet" href="style.css">
-    <!-- Telegram WebApp script -->
+    <!-- Telegram Web App SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <!-- Monetag SDK -->
     <script src='//whephiwums.com/sdk.js' data-zone='9321934' data-sdk='show_9321934'></script>
 </head>
 <body>
-    <div id="loader" class="loader">
-        <div class="spinner"></div>
-        <p>Loading Your Awesome App...</p>
-    </div>
+    <div id="loader" class="loader">Loading...</div>
 
-    <div id="app" class="app-container" style="display: none;">
-        <header class="app-header">
-            <div class="balance-info">
-                <span id="pointsDisplay">Points: 0</span>
+    <div id="app-container" style="display: none;">
+        <header>
+            <div class="user-info">
+                <span id="username-display">Player</span>
+                <span>Points: <span id="points-display">0</span></span>
             </div>
-            <div class="energy-info">
-                ⚡ <span id="energyDisplay">0/0</span>
+            <div class="energy-bar-container">
+                ⚡️ Energy: <span id="energy-value">100</span> / <span id="max-energy-value">100</span>
+                <div class="energy-bar">
+                    <div id="energy-fill" class="energy-fill"></div>
+                </div>
             </div>
         </header>
 
-        <main id="mainContent" class="main-content">
-            <!-- Pages will be injected here by JavaScript -->
-            <section id="profilePage" class="page">
+        <main id="main-content">
+            <!-- Profile Page -->
+            <section id="profile-page" class="page">
                 <h2>Profile</h2>
                 <div class="profile-details">
-                    <p><strong>Name:</strong> <span id="profileName">-</span></p>
-                    <p><strong>User ID:</strong> <span id="profileUserId">-</span></p>
-                    <p><strong>Joined:</strong> <span id="profileJoinDate">-</span></p>
-                    <p><strong>Total Points:</strong> <span id="profileTotalPoints">-</span></p>
-                    <p><strong>Referrals:</strong> <span id="profileTotalReferrals">-</span></p>
-                    <p><strong>Referral Link:</strong> <br><input type="text" id="profileReferralLink" readonly style="width: 90%; padding: 5px; margin-top: 5px;"> <button id="copyReferralLink">Copy</button></p>
+                    <p><strong>Name:</strong> <span id="profile-name"></span></p>
+                    <p><strong>User ID:</strong> <span id="profile-userid"></span></p>
+                    <p><strong>Joined:</strong> <span id="profile-joined"></span></p>
+                    <p><strong>Total Points:</strong> <span id="profile-points"></span></p>
+                    <p><strong>Referral Link:</strong> <input type="text" id="profile-referral-link" readonly> <button id="copy-referral-link">Copy</button></p>
+                    <p><strong>Total Referrals:</strong> <span id="profile-total-referrals">0</span></p>
                 </div>
             </section>
 
-            <section id="tapPage" class="page">
-                <h2>Tap to Earn</h2>
-                <div class="tap-zone">
-                    <div class="image-wrapper" id="ratImageContainer">
-                        <img src="file_000000007b806230998fc1a7ad49a693.png" alt="Tap Me!" id="tapImage">
-                    </div>
-                    <p id="clickFeedback" class="click-feedback"></p>
-                    <p id="dailyClickLimit">Daily Clicks: <span id="userClicksToday">0</span> / <span id="maxClicksPerDay">2500</span></p>
+            <!-- Tap Page -->
+            <section id="tap-page" class="page active">
+                <h2>Tap the Cat!</h2>
+                <div class="tap-area">
+                    <img src="https://placekitten.com/200/200" alt="Tap Cat" id="tap-cat-image">
+                    <!-- Use your own cat image: <img src="images/cat.png" alt="Tap Cat" id="tap-cat-image"> -->
                 </div>
-                <div class="energy-bar-container">
-                    <div id="energyBar" class="energy-bar"></div>
-                </div>
+                <p>Clicks Today: <span id="daily-clicks-display">0</span> / 2500</p>
+                <p id="tap-feedback" class="feedback"></p>
             </section>
 
-            <section id="tasksPage" class="page">
-                <h2>Tasks</h2>
-                <p>Complete tasks to earn points. Daily tasks refresh at UTC midnight.</p>
-                <div id="taskList" class="task-list">
-                    <!-- Tasks will be loaded here -->
+            <!-- Task Page -->
+            <section id="task-page" class="page">
+                <h2>Daily Tasks</h2>
+                <p>Complete all tasks to earn <span id="total-task-reward">200</span> points. Tasks refresh daily (UTC).</p>
+                <div id="task-list">
+                    <!-- Tasks will be loaded here by JavaScript -->
                 </div>
+                <button id="complete-all-tasks-btn">I've Joined All Channels/Groups!</button>
+                <p id="task-feedback" class="feedback"></p>
             </section>
 
-            <section id="adsPage" class="page">
+            <!-- Watch Ads Page -->
+            <section id="ads-page" class="page">
                 <h2>Watch Ads</h2>
-                <p>Watch an ad to earn <span id="pointsPerAd">40</span> points. You can watch <span id="maxAdsPerDay">45</span> ads per day.</p>
-                <p>Ads watched today: <span id="userAdsWatchedToday">0</span> / <span id="maxAdsPerDayVal">45</span></p>
-                <button id="watchAdButton" class="action-button">Watch Ad (<span id="pointsPerAdBtn">40</span> Points)</button>
-                <p id="adMessage" class="message"></p>
-                 <p id="adCooldownTimer" style="display:none;">Next ad available in: <span id="cooldownTime"></span></p>
+                <p>Watch an ad to earn 40 points. You can watch up to 45 ads per day.</p>
+                <p>Ads Watched Today: <span id="ads-watched-today">0</span> / 45</p>
+                <button id="watch-ad-btn">Watch Ad (40 Points)</button>
+                <p>Next ad available in: <span id="ad-cooldown-timer">Ready</span></p>
+                <p id="ads-feedback" class="feedback"></p>
             </section>
 
-            <section id="withdrawPage" class="page">
+            <!-- Withdraw Page -->
+            <section id="withdraw-page" class="page">
                 <h2>Withdraw Points</h2>
-                <p>Your current points: <span id="withdrawPointsCurrent">-</span></p>
-                <div class="withdraw-options">
+                <p>Your Points: <span id="withdraw-current-points">0</span></p>
+                <form id="withdraw-form">
                     <div class="withdraw-option">
-                        <h3>Withdraw 85,000 Points</h3>
-                        <button class="withdraw-button" data-amount="85000">Withdraw 85K</button>
+                        <label><input type="radio" name="withdraw_amount" value="85000" required> 85,000 Points</label>
                     </div>
                     <div class="withdraw-option">
-                        <h3>Withdraw 160,000 Points</h3>
-                        <button class="withdraw-button" data-amount="160000">Withdraw 160K</button>
+                        <label><input type="radio" name="withdraw_amount" value="160000"> 160,000 Points</label>
                     </div>
                     <div class="withdraw-option">
-                        <h3>Withdraw 300,000 Points</h3>
-                        <button class="withdraw-button" data-amount="300000">Withdraw 300K</button>
+                        <label><input type="radio" name="withdraw_amount" value="300000"> 300,000 Points</label>
                     </div>
-                </div>
-                <div id="withdrawForm" style="display:none; margin-top: 20px;">
-                    <h4>Withdrawal Details for <span id="withdrawAmountSelected"></span> Points</h4>
-                    <label for="withdrawMethod">Method:</label>
-                    <select id="withdrawMethod">
+
+                    <label for="payment-method">Payment Method:</label>
+                    <select id="payment-method" name="payment_method" required>
+                        <option value="">--Select Method--</option>
                         <option value="UPI">UPI</option>
                         <option value="Binance">Binance</option>
                     </select>
-                    <label for="withdrawDetails" id="withdrawDetailsLabel">UPI ID:</label>
-                    <input type="text" id="withdrawDetailsInput" placeholder="Enter your UPI ID">
-                    <button id="submitWithdrawalButton" class="action-button">Submit Request</button>
-                </div>
-                <p id="withdrawMessage" class="message"></p>
+
+                    <label for="payment-details">Payment Details (e.g., UPI ID or Binance ID/Address):</label>
+                    <input type="text" id="payment-details" name="payment_details" required>
+
+                    <button type="submit">Request Withdrawal</button>
+                </form>
+                <p id="withdraw-feedback" class="feedback"></p>
             </section>
         </main>
 
-        <nav class="bottom-nav">
-            <button data-page="profilePage" class="nav-button active"><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23888888'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/%3E%3C/svg%3E" alt="Profile"><span>Profile</span></button>
-            <button data-page="tapPage" class="nav-button"><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23888888'%3E%3Cpath d='M12.38 6.88L13.06 5.5H17V4H11.3L9.05 9.03L6.96 7.94L6.27 9.36L10.17 12L11.56 9.22L13.71 14.28L12.22 17H18V18.5H10.94L9.29 21.6H7.5L10.5 16.12L8.35 11.06L12.38 6.88Z'/%3E%3C/svg%3E" alt="Tap"><span>Tap</span></button> <!-- simple tap icon -->
-            <button data-page="tasksPage" class="nav-button"><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23888888'%3E%3Cpath d='M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z'/%3E%3C/svg%3E" alt="Tasks"><span>Tasks</span></button>
-            <button data-page="adsPage" class="nav-button"><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23888888'%3E%3Cpath d='M21.41 10.59l-8-8C13.04 2.22 12.53 2 12 2H4c-1.1 0-2 .9-2 2v8c0 .53.22 1.04.59 1.41l8 8c.37.37.88.59 1.41.59s1.04-.22 1.41-.59l7-7c.37-.37.59-.88.59-1.41s-.22-1.04-.59-1.41zM13 20.01L4 11V4h8l9 9-8 7.01zM6.5 7.5c-.83 0-1.5-.67-1.5-1.5S5.67 4.5 6.5 4.5s1.5.67 1.5 1.5S7.33 7.5 6.5 7.5z'/%3E%3C/svg%3E" alt="Ads"><span>Ads</span></button>
-            <button data-page="withdrawPage" class="nav-button"><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23888888'%3E%3Cpath d='M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12H17A5,5 0 0,0 12,7V4M4,12A8,8 0 0,1 12,4V7A5,5 0 0,0 7,12H4Z'/%3E%3C/svg%3E" alt="Withdraw"><span>Withdraw</span></button>
+        <nav id="bottom-nav">
+            <button data-page="profile-page">Profile</button>
+            <button data-page="tap-page" class="active">Tap</button>
+            <button data-page="task-page">Tasks</button>
+            <button data-page="ads-page">Ads</button>
+            <button data-page="withdraw-page">Withdraw</button>
         </nav>
     </div>
 
