@@ -1,443 +1,467 @@
 <?php
 header('Content-Type: application/json');
-require_once 'db_config.php';
+require_once 'db_config.php'; // $conn variable will be available here
 
-// --- Main Request Handler ---
-if (!isset($_POST['action'])) {
-    echo json_encode(['success' => false, 'message' => 'No action specified.']);
-    exit;
-}
+// Constants
+define('POINTS_PER_TAP', 1);
+define('REFERRAL_BONUS_POINTS', 20);
+define('POINTS_PER_AD', 40);
+define('MAX_DAILY_ADS', 45);
+define('POINTS_PER_TASK_SET', 200); // Total for completing all 4 daily tasks
 
-$action = $_POST['action'];
-$telegram_init_data_str = isset($_POST['telegram_init_data']) ? $_POST['telegram_init_data'] : null;
+$action = $_GET['action'] ?? '';
+$input = json_decode(file_get_contents('php://input'), true);
 
-// For actions requiring user data, parse and validate Telegram initData
-$telegram_user_data = null;
-if ($telegram_init_data_str) {
-    // In a real app, you'd validate this string securely.
-    // For now, we parse it to get user info.
-    parse_str($telegram_init_data_str, $init_data_array);
-    if (isset($init_data_array['user'])) {
-        $telegram_user_data = json_decode($init_data_array['user'], true);
+// Always expect telegram_id for most actions after initialization
+$telegram_id = $input['telegram_id'] ?? null;
+$user = null;
+
+if ($telegram_id && $action !== 'initializeUser') { // For most actions, load user data first
+    $user = getUser($conn, $telegram_id);
+    if ($user) {
+        $user = checkAndResetDailyLimits($conn, $user);
+        $user = calculateAndUpdateEnergy($conn, $user); // Calculate energy on each relevant request
+    } else if ($action !== 'initializeUser') {
+        echo json_encode(['error' => 'User not found or not initialized. Please restart the app.']);
+        exit;
     }
 }
 
-// If telegram_user_data is null for protected actions, deny.
-// init_user is special as it might be the first time we see a user.
-if ($action !== 'init_user' && !$telegram_user_data) {
-    echo json_encode(['success' => false, 'message' => 'User authentication failed. Please open via Telegram.']);
-    exit;
-}
 
-$conn = getDBConnection();
-$current_user_id = null; // Internal DB user ID
-$current_telegram_id = null;
-
-if ($telegram_user_data && isset($telegram_user_data['id'])) {
-    $current_telegram_id = (int)$telegram_user_data['id'];
-    // Fetch internal user ID if user already exists
-    $stmt_get_user = $conn->prepare("SELECT id FROM users WHERE telegram_id = ?");
-    $stmt_get_user->bind_param("i", $current_telegram_id);
-    $stmt_get_user->execute();
-    $result_user = $stmt_get_user->get_result();
-    if ($user_row = $result_user->fetch_assoc()) {
-        $current_user_id = $user_row['id'];
-    }
-    $stmt_get_user->close();
-}
-
-
-// --- Action Routing ---
 switch ($action) {
-    case 'init_user':
-        handle_init_user($conn, $telegram_user_data, isset($_POST['start_param']) ? $_POST['start_param'] : null);
+    case 'initializeUser':
+        initializeUser($conn, $input);
         break;
-    case 'get_user_data': // Generic endpoint to refresh user data
-        if (!$current_user_id) { echo json_encode(['success' => false, 'message' => 'User not found.']); exit; }
-        $user_data = get_user_full_data($conn, $current_user_id);
-        echo json_encode(['success' => true, 'data' => $user_data]);
+    case 'getUserData': // Could be used for manual refresh
+        if ($user) {
+            echo json_encode(['success' => true, 'data' => $user]);
+        } else {
+            echo json_encode(['error' => 'User not found. Please initialize first.']);
+        }
         break;
     case 'tap':
-        if (!$current_user_id) { echo json_encode(['success' => false, 'message' => 'User not found.']); exit; }
-        handle_tap($conn, $current_user_id);
+        handleTap($conn, $user);
         break;
-    case 'get_tasks':
-        if (!$current_user_id) { echo json_encode(['success' => false, 'message' => 'User not found.']); exit; }
-        handle_get_tasks($conn, $current_user_id);
+    case 'getTasks':
+        getTasks($conn, $user);
         break;
-    case 'complete_task':
-        if (!$current_user_id) { echo json_encode(['success' => false, 'message' => 'User not found.']); exit; }
-        $task_id = isset($_POST['task_id']) ? (int)$_POST['task_id'] : 0;
-        handle_complete_task($conn, $current_user_id, $task_id);
+    case 'completeDailyTasks':
+        completeDailyTasks($conn, $user);
         break;
-    case 'watch_ad':
-        if (!$current_user_id) { echo json_encode(['success' => false, 'message' => 'User not found.']); exit; }
-        handle_watch_ad($conn, $current_user_id);
+    case 'watchAd':
+        handleWatchAd($conn, $user);
         break;
-    case 'submit_withdrawal':
-        if (!$current_user_id) { echo json_encode(['success' => false, 'message' => 'User not found.']); exit; }
-        $amount = isset($_POST['amount']) ? (int)$_POST['amount'] : 0;
-        $method = isset($_POST['method']) ? $_POST['method'] : '';
-        $details = isset($_POST['details']) ? $_POST['details'] : '';
-        handle_submit_withdrawal($conn, $current_user_id, $amount, $method, $details);
+    case 'requestWithdrawal':
+        handleWithdrawal($conn, $user, $input);
+        break;
+    case 'syncEnergy': // For client to sync its energy calculation with server's authoritative one
+        if ($user) {
+             // The calculateAndUpdateEnergy function already updates $user['energy'] and $user['last_energy_update_ts']
+            // Just return the fresh user data which now includes calculated energy
+            echo json_encode(['success' => true, 'data' => [
+                'energy' => $user['energy'],
+                'points' => $user['points'], // also send points
+                'last_energy_update_ts' => $user['last_energy_update_ts']
+            ]]);
+        } else {
+            echo json_encode(['error' => 'User not found for energy sync.']);
+        }
         break;
     default:
-        echo json_encode(['success' => false, 'message' => 'Invalid action.']);
+        echo json_encode(['error' => 'Invalid action']);
 }
 
 $conn->close();
 
-// --- Handler Functions ---
+// --- Core Functions ---
 
-function handle_init_user($conn, $telegram_user_data, $start_param) {
-    if (!$telegram_user_data || !isset($telegram_user_data['id'])) {
-        echo json_encode(['success' => false, 'message' => 'Invalid Telegram data.']);
-        return;
-    }
-
-    $telegram_id = (int)$telegram_user_data['id'];
-    $username = isset($telegram_user_data['username']) ? $telegram_user_data['username'] : null;
-    $first_name = isset($telegram_user_data['first_name']) ? $telegram_user_data['first_name'] : null;
-
-    $stmt = $conn->prepare("SELECT id FROM users WHERE telegram_id = ?");
+function getUser($conn, $telegram_id) {
+    $stmt = $conn->prepare("SELECT * FROM users WHERE telegram_id = ?");
+    if (!$stmt) { log_db_error($conn, "Prepare failed: getUser"); return null; }
     $stmt->bind_param("i", $telegram_id);
     $stmt->execute();
     $result = $stmt->get_result();
-    $user_db_id = null;
-
-    if ($result->num_rows > 0) {
-        $user = $result->fetch_assoc();
-        $user_db_id = $user['id'];
-        // Optionally update username/firstname if changed
-        $updateStmt = $conn->prepare("UPDATE users SET username = ?, first_name = ?, updated_at = NOW() WHERE id = ?");
-        $updateStmt->bind_param("ssi", $username, $first_name, $user_db_id);
-        $updateStmt->execute();
-        $updateStmt->close();
-    } else {
-        // New user
-        $referred_by_user_id = null;
-        if ($start_param) {
-            // $start_param is the telegram_id of the referrer
-            $referrer_telegram_id = (int)$start_param;
-            if ($referrer_telegram_id !== $telegram_id) { // Cannot refer self
-                $stmt_ref = $conn->prepare("SELECT id FROM users WHERE telegram_id = ?");
-                $stmt_ref->bind_param("i", $referrer_telegram_id);
-                $stmt_ref->execute();
-                $result_ref = $stmt_ref->get_result();
-                if ($ref_user = $result_ref->fetch_assoc()) {
-                    $referred_by_user_id = $ref_user['id'];
-                }
-                $stmt_ref->close();
-            }
-        }
-
-        $insertStmt = $conn->prepare("INSERT INTO users (telegram_id, username, first_name, max_energy, referred_by_user_id, join_date, created_at, updated_at) VALUES (?, ?, ?, ?, ?, NOW(), NOW(), NOW())");
-        $max_energy_val = INITIAL_MAX_ENERGY;
-        $insertStmt->bind_param("issii", $telegram_id, $username, $first_name, $max_energy_val, $referred_by_user_id);
-        if ($insertStmt->execute()) {
-            $user_db_id = $conn->insert_id;
-            if ($referred_by_user_id) {
-                // Award points to referrer and log referral
-                $conn->query("UPDATE users SET points = points + " . POINTS_PER_REFERRAL . " WHERE id = $referred_by_user_id");
-                $conn->query("INSERT INTO referrals (referrer_user_id, referred_user_id) VALUES ($referred_by_user_id, $user_db_id)");
-            }
-        } else {
-            error_log("Failed to insert new user: " . $conn->error);
-            echo json_encode(['success' => false, 'message' => 'Error creating user profile.']);
-            return;
-        }
-        $insertStmt->close();
-    }
+    $userData = $result->fetch_assoc();
     $stmt->close();
-
-    if ($user_db_id) {
-        $user_data = get_user_full_data($conn, $user_db_id);
-        echo json_encode(['success' => true, 'data' => $user_data]);
-    } else {
-        echo json_encode(['success' => false, 'message' => 'Could not initialize user.']);
+    
+    if ($userData) {
+        // Add derived/helper properties
+        $userData['ads_watched_today'] = getAdsWatchedToday($conn, $userData['user_id']);
+        $userData['max_daily_ads'] = MAX_DAILY_ADS; // Constant
+        $userData['tasks_completed_today'] = hasCompletedDailyTasks($conn, $userData['user_id']);
     }
+    return $userData;
 }
 
+function initializeUser($conn, $input) {
+    $telegram_id = $input['telegram_id'] ?? null;
+    $username = $input['username'] ?? null;
+    $first_name = $input['first_name'] ?? null;
+    $start_param = $input['start_param'] ?? null; // Referrer's Telegram ID
 
-function get_user_full_data($conn, $user_db_id) {
-    // Regenerate energy first
-    regenerate_energy($conn, $user_db_id);
-
-    $stmt = $conn->prepare("SELECT u.*, COUNT(r.id) as total_referrals 
-                            FROM users u 
-                            LEFT JOIN referrals r ON u.id = r.referrer_user_id
-                            WHERE u.id = ?
-                            GROUP BY u.id");
-    $stmt->bind_param("i", $user_db_id);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    $user = $result->fetch_assoc();
-    $stmt->close();
-
-    if (!$user) return null;
-
-    // Reset daily counters if date has changed (UTC)
-    $today_utc = gmdate('Y-m-d');
-
-    if ($user['last_click_date'] != $today_utc) {
-        $user['click_count_today'] = 0;
-        $conn->query("UPDATE users SET click_count_today = 0, last_click_date = '$today_utc' WHERE id = $user_db_id");
-    }
-    if ($user['last_ad_watch_date'] != $today_utc) {
-        $user['ads_watched_today'] = 0;
-        $conn->query("UPDATE users SET ads_watched_today = 0, last_ad_watch_date = '$today_utc' WHERE id = $user_db_id");
+    if (!$telegram_id) {
+        echo json_encode(['error' => 'Telegram ID is required for initialization.']);
+        return;
     }
 
-    // Add config values to user data for frontend use
-    $user['points_per_tap_config'] = POINTS_PER_TAP;
-    $user['max_clicks_per_day_config'] = MAX_CLICKS_PER_DAY;
-    $user['points_per_ad_config'] = POINTS_PER_AD;
-    $user['max_ads_per_day_config'] = MAX_ADS_PER_DAY;
-    $user['energy_regen_rate_per_minute_config'] = ENERGY_REGEN_RATE_PER_MINUTE;
-    $user['WatchClickEarn_bot'] = BOT_USERNAME; // Send bot username for referral link
+    $user = getUser($conn, $telegram_id);
 
-    // Ad cooldown status
-    $user['ad_cooldown_active'] = false;
-    $user['ad_cooldown_remaining_seconds'] = 0;
-    if ($user['last_ad_reward_timestamp']) {
-        $last_ad_time = strtotime($user['last_ad_reward_timestamp']);
-        $cooldown_seconds = AD_COOLDOWN_MINUTES * 60;
-        $time_since_last_ad = time() - $last_ad_time;
-        if ($time_since_last_ad < $cooldown_seconds) {
-            $user['ad_cooldown_active'] = true;
-            $user['ad_cooldown_remaining_seconds'] = $cooldown_seconds - $time_since_last_ad;
+    if (!$user) { // New user
+        $conn->begin_transaction();
+        try {
+            $referred_by_user_id = null;
+            if ($start_param) {
+                $referrer_telegram_id = filter_var($start_param, FILTER_VALIDATE_INT);
+                if ($referrer_telegram_id && $referrer_telegram_id != $telegram_id) {
+                    $referrerUser = getUser($conn, $referrer_telegram_id);
+                    if ($referrerUser) {
+                        $referred_by_user_id = $referrerUser['user_id'];
+                        // Award bonus to referrer
+                        $new_referrer_points = $referrerUser['points'] + REFERRAL_BONUS_POINTS;
+                        $new_total_referrals = $referrerUser['total_referrals'] + 1;
+                        $stmt_ref = $conn->prepare("UPDATE users SET points = ?, total_referrals = ? WHERE user_id = ?");
+                        if (!$stmt_ref) { throw new Exception("Prepare failed (referrer update): " . $conn->error); }
+                        $stmt_ref->bind_param("iii", $new_referrer_points, $new_total_referrals, $referrerUser['user_id']);
+                        if(!$stmt_ref->execute()) { throw new Exception("Execute failed (referrer update): " . $stmt_ref->error); }
+                        $stmt_ref->close();
+                    }
+                }
+            }
+
+            $current_ts_for_energy = time(); // Current Unix timestamp
+            $stmt_new = $conn->prepare("INSERT INTO users (telegram_id, username, first_name, referred_by_user_id, energy, max_energy, energy_per_tap, energy_refill_rate_seconds, last_energy_update_ts, daily_clicks_count, max_daily_clicks, last_click_reset_date_utc) VALUES (?, ?, ?, ?, 100, 100, 1, 30, ?, 0, 2500, CURDATE())");
+            if (!$stmt_new) { throw new Exception("Prepare failed (new user insert): " . $conn->error); }
+            $stmt_new->bind_param("issiiis", $telegram_id, $username, $first_name, $referred_by_user_id, $current_ts_for_energy);
+             if(!$stmt_new->execute()) { throw new Exception("Execute failed (new user insert): " . $stmt_new->error); }
+            $new_user_id = $stmt_new->insert_id;
+            $stmt_new->close();
+            $conn->commit();
+            $user = getUser($conn, $telegram_id); // Fetch the newly created user
+        } catch (Exception $e) {
+            $conn->rollback();
+            log_db_error($conn, "Transaction failed (initializeUser): " . $e->getMessage());
+            echo json_encode(['error' => 'Failed to create user profile. ' . $e->getMessage()]);
+            return;
         }
     }
     
+    // For both new and existing users, ensure daily limits and energy are up-to-date
+    $user = checkAndResetDailyLimits($conn, $user);
+    $user = calculateAndUpdateEnergy($conn, $user);
+
+    echo json_encode(['success' => true, 'data' => $user]);
+}
+
+function calculateAndUpdateEnergy($conn, &$user) {
+    $currentTime = time(); // Current Unix timestamp
+    $lastUpdate = (int)$user['last_energy_update_ts'];
+    $energyRefillRate = (int)$user['energy_refill_rate_seconds']; // seconds per 1 energy
+    $maxEnergy = (int)$user['max_energy'];
+    $currentEnergy = (int)$user['energy'];
+
+    if ($currentEnergy >= $maxEnergy) {
+        // If energy is already full, just update timestamp if it's significantly old to prevent large accumulation on next spend.
+        // Or, ensure last_energy_update_ts reflects a time when it was full.
+        if ($currentTime - $lastUpdate > $energyRefillRate) { // Check if it's worth updating timestamp
+            $stmt = $conn->prepare("UPDATE users SET last_energy_update_ts = ? WHERE user_id = ?");
+            if (!$stmt) { log_db_error($conn, "Prepare failed (energy timestamp update)"); return $user; }
+            $stmt->bind_param("ii", $currentTime, $user['user_id']);
+            $stmt->execute();
+            $stmt->close();
+            $user['last_energy_update_ts'] = $currentTime;
+        }
+        return $user; // No change in energy value needed
+    }
+
+    if ($energyRefillRate <= 0) return $user; // Avoid division by zero
+
+    $timePassed = $currentTime - $lastUpdate;
+    if ($timePassed <= 0) return $user;
+
+    $energyGained = floor($timePassed / $energyRefillRate);
+
+    if ($energyGained > 0) {
+        $newEnergy = min($maxEnergy, $currentEnergy + $energyGained);
+        // Determine the "effective" last update timestamp. If energy filled up, it's the time it became full.
+        // Otherwise, it's the current time minus any "unused" fraction of the refill interval.
+        $newLastUpdateTs = $lastUpdate + ($energyGained * $energyRefillRate); 
+        
+        $stmt = $conn->prepare("UPDATE users SET energy = ?, last_energy_update_ts = ? WHERE user_id = ?");
+        if (!$stmt) { log_db_error($conn, "Prepare failed (energy update)"); return $user; } // Log and return old user data
+        $stmt->bind_param("iii", $newEnergy, $newLastUpdateTs, $user['user_id']);
+        
+        if ($stmt->execute()) {
+            $user['energy'] = $newEnergy;
+            $user['last_energy_update_ts'] = $newLastUpdateTs;
+        } else {
+            log_db_error($conn, "Execute failed (energy update): " . $stmt->error);
+        }
+        $stmt->close();
+    }
     return $user;
 }
 
-function regenerate_energy($conn, $user_db_id) {
-    $stmt = $conn->prepare("SELECT energy, max_energy, last_energy_update FROM users WHERE id = ?");
-    $stmt->bind_param("i", $user_db_id);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    $user_energy_data = $result->fetch_assoc();
-    $stmt->close();
 
-    if (!$user_energy_data || $user_energy_data['energy'] >= $user_energy_data['max_energy']) {
-        return; // No need to regenerate or user not found
-    }
+function checkAndResetDailyLimits($conn, &$user) {
+    $current_utc_date_str = gmdate('Y-m-d'); // Current UTC date as string
+    $current_utc_date_obj = new DateTime($current_utc_date_str, new DateTimeZone('UTC'));
 
-    $now = time();
-    $last_update_ts = strtotime($user_energy_data['last_energy_update']);
-    $seconds_passed = $now - $last_update_ts;
+    $needsUpdate = false;
+    $update_query_parts = [];
+    $bind_params = [];
+    $types = "";
 
-    if ($seconds_passed <= 0) return;
-
-    $energy_per_second = ENERGY_REGEN_RATE_PER_MINUTE / 60.0;
-    $energy_to_add = floor($seconds_passed * $energy_per_second);
-
-    if ($energy_to_add > 0) {
-        $new_energy = $user_energy_data['energy'] + $energy_to_add;
-        if ($new_energy > $user_energy_data['max_energy']) {
-            $new_energy = $user_energy_data['max_energy'];
+    // Check daily click limit
+    $last_click_reset_date_str = $user['last_click_reset_date_utc'];
+    if ($last_click_reset_date_str) {
+        $last_click_reset_date_obj = new DateTime($last_click_reset_date_str, new DateTimeZone('UTC'));
+        if ($current_utc_date_obj > $last_click_reset_date_obj) {
+            $user['daily_clicks_count'] = 0;
+            $update_query_parts[] = "daily_clicks_count = 0";
+            $update_query_parts[] = "last_click_reset_date_utc = ?";
+            $bind_params[] = $current_utc_date_str;
+            $types .= "s";
+            $needsUpdate = true;
         }
-        
-        // Only update if energy actually changed
-        if ($new_energy != $user_energy_data['energy']) {
-            $updateStmt = $conn->prepare("UPDATE users SET energy = ?, last_energy_update = NOW() WHERE id = ?");
-            $updateStmt->bind_param("ii", $new_energy, $user_db_id);
-            $updateStmt->execute();
-            $updateStmt->close();
-        }
+    } else { // First time or null date
+        $update_query_parts[] = "last_click_reset_date_utc = ?";
+        $bind_params[] = $current_utc_date_str;
+        $types .= "s";
+        $needsUpdate = true;
     }
-}
-
-
-function handle_tap($conn, $user_db_id) {
-    $user = get_user_full_data($conn, $user_db_id); // Gets latest data including daily resets & energy regen
-
-    if ($user['energy'] <= 0) {
-        echo json_encode(['success' => false, 'message' => 'Not enough energy.', 'data' => $user]);
-        return;
-    }
-    if ($user['click_count_today'] >= MAX_CLICKS_PER_DAY) {
-        echo json_encode(['success' => false, 'message' => 'Daily click limit reached.', 'data' => $user]);
-        return;
-    }
-
-    $new_energy = $user['energy'] - 1;
-    $new_points = $user['points'] + POINTS_PER_TAP;
-    $new_click_count = $user['click_count_today'] + 1;
-
-    $stmt = $conn->prepare("UPDATE users SET energy = ?, points = ?, click_count_today = ?, last_energy_update = NOW() WHERE id = ?");
-    $stmt->bind_param("iiii", $new_energy, $new_points, $new_click_count, $user_db_id);
-    if ($stmt->execute()) {
-        // Fetch updated data to send back
-        $updated_user_data = get_user_full_data($conn, $user_db_id);
-        echo json_encode(['success' => true, 'message' => 'Tap successful!', 'data' => $updated_user_data]);
-    } else {
-        echo json_encode(['success' => false, 'message' => 'Tap failed. Please try again.', 'data' => $user]);
-    }
-    $stmt->close();
-}
-
-function handle_get_tasks($conn, $user_db_id) {
-    $today_utc = gmdate('Y-m-d');
-    $sql = "SELECT t.*, EXISTS (
-                SELECT 1 FROM user_completed_tasks uct 
-                WHERE uct.user_id = ? AND uct.task_id = t.id AND uct.completion_date = ?
-            ) as completed_today
-            FROM tasks t WHERE t.active = TRUE";
     
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param("is", $user_db_id, $today_utc);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    $tasks = [];
-    while ($row = $result->fetch_assoc()) {
-        $tasks[] = $row;
+    // Ads and Tasks daily limits are implicitly handled by checking dates on their respective log tables
+    // but we can update the derived properties in $user if date changed.
+    if ($needsUpdate) {
+        // $user['ads_watched_today'] would be reset if date changes (handled by getAdsWatchedToday)
+        // $user['tasks_completed_today'] would be reset if date changes (handled by hasCompletedDailyTasks)
+        $user['ads_watched_today'] = getAdsWatchedToday($conn, $user['user_id']);
+        $user['tasks_completed_today'] = hasCompletedDailyTasks($conn, $user['user_id']);
     }
-    $stmt->close();
-    echo json_encode(['success' => true, 'tasks' => $tasks]);
+
+
+    if ($needsUpdate && count($update_query_parts) > 0) {
+        $sql = "UPDATE users SET " . implode(", ", $update_query_parts) . " WHERE user_id = ?";
+        $types .= "i";
+        $bind_params[] = $user['user_id'];
+
+        $stmt = $conn->prepare($sql);
+        if (!$stmt) { log_db_error($conn, "Prepare failed (reset daily limits)"); return $user; }
+        
+        $stmt->bind_param($types, ...$bind_params);
+        if (!$stmt->execute()) {
+            log_db_error($conn, "Execute failed (reset daily limits): " . $stmt->error);
+        }
+        $stmt->close();
+        // Re-fetch user to get the most accurate state after updates
+        $user = getUser($conn, $user['telegram_id']);
+    }
+    return $user;
 }
 
-function handle_complete_task($conn, $user_db_id, $task_id) {
-    if (!$task_id) {
-        echo json_encode(['success' => false, 'message' => 'Invalid task ID.']);
+
+function handleTap($conn, &$user) {
+    if ($user['energy'] < $user['energy_per_tap']) {
+        echo json_encode(['error' => 'Not enough energy.']);
+        return;
+    }
+    if ($user['daily_clicks_count'] >= $user['max_daily_clicks']) {
+        echo json_encode(['error' => 'Daily click limit reached.']);
         return;
     }
 
-    // Check if task exists and get its reward
-    $stmt_task = $conn->prepare("SELECT points_reward, is_daily_refresh FROM tasks WHERE id = ? AND active = TRUE");
-    $stmt_task->bind_param("i", $task_id);
-    $stmt_task->execute();
-    $result_task = $stmt_task->get_result();
-    $task_data = $result_task->fetch_assoc();
-    $stmt_task->close();
+    $new_points = $user['points'] + POINTS_PER_TAP;
+    $new_energy = $user['energy'] - $user['energy_per_tap'];
+    $new_daily_clicks = $user['daily_clicks_count'] + 1;
+    $current_ts_for_energy = time(); // For updating last_energy_update_ts due to spending
 
-    if (!$task_data) {
-        echo json_encode(['success' => false, 'message' => 'Task not found or inactive.']);
-        return;
-    }
-    $points_reward = $task_data['points_reward'];
-    $is_daily = $task_data['is_daily_refresh'];
-    $today_utc = gmdate('Y-m-d');
+    $stmt = $conn->prepare("UPDATE users SET points = ?, energy = ?, daily_clicks_count = ?, last_energy_update_ts = ? WHERE user_id = ?");
+    if (!$stmt) { log_db_error($conn, "Prepare failed (tap)"); echo json_encode(['error' => 'Server error processing tap.']); return; }
+    
+    $stmt->bind_param("iiiii", $new_points, $new_energy, $new_daily_clicks, $current_ts_for_energy, $user['user_id']);
 
-    // Check if already completed today (if daily) or ever (if not daily)
-    $completion_check_sql = "SELECT id FROM user_completed_tasks WHERE user_id = ? AND task_id = ?";
-    if ($is_daily) {
-        $completion_check_sql .= " AND completion_date = ?";
-    }
-    $stmt_check = $conn->prepare($completion_check_sql);
-    if ($is_daily) {
-        $stmt_check->bind_param("iis", $user_db_id, $task_id, $today_utc);
+    if ($stmt->execute()) {
+        // Update user object in memory
+        $user['points'] = $new_points;
+        $user['energy'] = $new_energy;
+        $user['daily_clicks_count'] = $new_daily_clicks;
+        $user['last_energy_update_ts'] = $current_ts_for_energy;
+        echo json_encode(['success' => true, 'data' => $user, 'points_earned_this_tap' => POINTS_PER_TAP]);
     } else {
-        $stmt_check->bind_param("ii", $user_db_id, $task_id);
+        log_db_error($conn, "Execute failed (tap): " . $stmt->error);
+        echo json_encode(['error' => 'Failed to record tap.']);
     }
-    $stmt_check->execute();
-    if ($stmt_check->get_result()->num_rows > 0) {
-        echo json_encode(['success' => false, 'message' => 'Task already completed.', 'data' => get_user_full_data($conn, $user_db_id)]);
-        $stmt_check->close();
+    $stmt->close();
+}
+
+function getTasks($conn, $user) {
+    $tasks = [];
+    $result = $conn->query("SELECT task_id, name, description, link, points_reward FROM tasks WHERE is_daily = TRUE ORDER BY task_id ASC LIMIT 4");
+    if ($result) {
+        while ($row = $result->fetch_assoc()) {
+            $tasks[] = $row;
+        }
+    } else {
+        log_db_error($conn, "Query failed (getTasks)");
+        echo json_encode(['error' => 'Could not fetch tasks.']);
         return;
     }
-    $stmt_check->close();
+    
+    $tasks_completed_today = hasCompletedDailyTasks($conn, $user['user_id']);
+    echo json_encode(['success' => true, 'data' => ['tasks' => $tasks, 'tasks_completed_today' => $tasks_completed_today]]);
+}
 
-    // Start transaction
+function hasCompletedDailyTasks($conn, $user_id) {
+    $current_utc_date = gmdate('Y-m-d');
+    $stmt = $conn->prepare("SELECT 1 FROM user_daily_task_sets WHERE user_id = ? AND completion_date_utc = ?");
+    if (!$stmt) { log_db_error($conn, "Prepare failed (hasCompletedDailyTasks)"); return false; }
+    $stmt->bind_param("is", $user_id, $current_utc_date);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $completed = $result->num_rows > 0;
+    $stmt->close();
+    return $completed;
+}
+
+function completeDailyTasks($conn, &$user) {
+    if (hasCompletedDailyTasks($conn, $user['user_id'])) {
+        echo json_encode(['error' => 'Daily tasks already completed today.']);
+        return;
+    }
+
+    $current_utc_date = gmdate('Y-m-d');
+    $new_total_points = $user['points'] + POINTS_PER_TASK_SET;
+
     $conn->begin_transaction();
     try {
-        $stmt_update_points = $conn->prepare("UPDATE users SET points = points + ? WHERE id = ?");
-        $stmt_update_points->bind_param("ii", $points_reward, $user_db_id);
-        $stmt_update_points->execute();
-        $stmt_update_points->close();
+        $stmt_log = $conn->prepare("INSERT INTO user_daily_task_sets (user_id, completion_date_utc) VALUES (?, ?)");
+        if (!$stmt_log) throw new Exception("Prepare failed (task log): " . $conn->error);
+        $stmt_log->bind_param("is", $user['user_id'], $current_utc_date);
+        if (!$stmt_log->execute()) throw new Exception("Execute failed (task log): " . $stmt_log->error);
+        $stmt_log->close();
 
-        $stmt_log_task = $conn->prepare("INSERT INTO user_completed_tasks (user_id, task_id, completion_date) VALUES (?, ?, ?)");
-        $stmt_log_task->bind_param("iis", $user_db_id, $task_id, $today_utc);
-        $stmt_log_task->execute();
-        $stmt_log_task->close();
+        $stmt_update = $conn->prepare("UPDATE users SET points = ? WHERE user_id = ?");
+        if (!$stmt_update) throw new Exception("Prepare failed (user points update): " . $conn->error);
+        $stmt_update->bind_param("ii", $new_total_points, $user['user_id']);
+        if (!$stmt_update->execute()) throw new Exception("Execute failed (user points update): " . $stmt_update->error);
+        $stmt_update->close();
+
+        $conn->commit();
+        $user['points'] = $new_total_points;
+        $user['tasks_completed_today'] = true; // Update in-memory user object
+        echo json_encode(['success' => true, 'data' => ['new_total_points' => $new_total_points, 'points_earned' => POINTS_PER_TASK_SET]]);
+    } catch (Exception $e) {
+        $conn->rollback();
+        log_db_error($conn, "Transaction failed (completeDailyTasks): " . $e->getMessage());
+        echo json_encode(['error' => 'Failed to complete tasks. ' . $e->getMessage()]);
+    }
+}
+
+
+function getAdsWatchedToday($conn, $user_id) {
+    $current_utc_date_start = gmdate('Y-m-d 00:00:00');
+    $current_utc_date_end = gmdate('Y-m-d 23:59:59');
+
+    $stmt = $conn->prepare("SELECT COUNT(*) as count FROM user_ads_log WHERE user_id = ? AND watched_at_utc BETWEEN ? AND ?");
+    if (!$stmt) { log_db_error($conn, "Prepare failed (getAdsWatchedToday)"); return 0; }
+    $stmt->bind_param("iss", $user_id, $current_utc_date_start, $current_utc_date_end);
+    $stmt->execute();
+    $result = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return $result['count'] ?? 0;
+}
+
+function handleWatchAd($conn, &$user) {
+    $ads_watched_today = getAdsWatchedToday($conn, $user['user_id']);
+    if ($ads_watched_today >= MAX_DAILY_ADS) {
+        echo json_encode(['error' => 'Daily ad watch limit reached.']);
+        return;
+    }
+
+    // Cooldown is primarily client-side, but a server-side check could be added here if needed.
+    // For now, we trust the client's 3-minute cooldown handling.
+
+    $new_total_points = $user['points'] + POINTS_PER_AD;
+
+    $conn->begin_transaction();
+    try {
+        $stmt_log = $conn->prepare("INSERT INTO user_ads_log (user_id, points_earned, watched_at_utc) VALUES (?, ?, UTC_TIMESTAMP())");
+        if (!$stmt_log) throw new Exception("Prepare failed (ad log): " . $conn->error);
+        $stmt_log->bind_param("ii", $user['user_id'], POINTS_PER_AD);
+        if (!$stmt_log->execute()) throw new Exception("Execute failed (ad log): " . $stmt_log->error);
+        $stmt_log->close();
+
+        $stmt_update = $conn->prepare("UPDATE users SET points = ? WHERE user_id = ?");
+        if (!$stmt_update) throw new Exception("Prepare failed (user points for ad): " . $conn->error);
+        $stmt_update->bind_param("ii", $new_total_points, $user['user_id']);
+        if (!$stmt_update->execute()) throw new Exception("Execute failed (user points for ad): " . $stmt_update->error);
+        $stmt_update->close();
         
         $conn->commit();
-        echo json_encode(['success' => true, 'message' => 'Task completed! Points awarded.', 'data' => get_user_full_data($conn, $user_db_id)]);
-    } catch (mysqli_sql_exception $exception) {
+
+        $user['points'] = $new_total_points;
+        $user['ads_watched_today'] = $ads_watched_today + 1; // Update in-memory count
+        echo json_encode(['success' => true, 'data' => $user, 'points_earned_for_ad' => POINTS_PER_AD]);
+
+    } catch (Exception $e) {
         $conn->rollback();
-        error_log("Task completion transaction failed: " . $exception->getMessage());
-        echo json_encode(['success' => false, 'message' => 'Failed to complete task due to a server error.']);
+        log_db_error($conn, "Transaction failed (handleWatchAd): " . $e->getMessage());
+        echo json_encode(['error' => 'Failed to record ad view. ' . $e->getMessage()]);
     }
 }
 
-function handle_watch_ad($conn, $user_db_id) {
-    $user = get_user_full_data($conn, $user_db_id); // Gets latest including daily resets
+function handleWithdrawal($conn, &$user, $input) {
+    $amount = filter_var($input['amount'] ?? 0, FILTER_VALIDATE_INT);
+    $method = trim($input['method'] ?? '');
+    $details = trim($input['details'] ?? '');
 
-    if ($user['ads_watched_today'] >= MAX_ADS_PER_DAY) {
-        echo json_encode(['success' => false, 'message' => 'Daily ad limit reached.', 'data' => $user]);
+    $valid_amounts = [85000, 160000, 300000];
+    if (!in_array($amount, $valid_amounts)) {
+        echo json_encode(['error' => 'Invalid withdrawal amount.']);
         return;
     }
-
-    // Check cooldown
-    if ($user['ad_cooldown_active']) {
-        echo json_encode(['success' => false, 'message' => 'Ad cooldown active. Please wait.', 'data' => $user]);
-        return;
-    }
-
-    $new_points = $user['points'] + POINTS_PER_AD;
-    $new_ads_watched = $user['ads_watched_today'] + 1;
-    $now_timestamp_for_db = gmdate('Y-m-d H:i:s'); // UTC timestamp
-
-    $stmt = $conn->prepare("UPDATE users SET points = points + ?, ads_watched_today = ?, last_ad_reward_timestamp = ? WHERE id = ?");
-    $stmt->bind_param("iisi", POINTS_PER_AD, $new_ads_watched, $now_timestamp_for_db, $user_db_id);
-    
-    if ($stmt->execute()) {
-        $updated_user_data = get_user_full_data($conn, $user_db_id);
-        echo json_encode(['success' => true, 'message' => 'Ad reward processed!', 'data' => $updated_user_data]);
-    } else {
-        error_log("Ad reward failed: " . $conn->error);
-        echo json_encode(['success' => false, 'message' => 'Failed to process ad reward.', 'data' => $user]);
-    }
-    $stmt->close();
-}
-
-function handle_submit_withdrawal($conn, $user_db_id, $amount, $method, $details) {
-    if (!in_array($amount, [85000, 160000, 300000])) {
-        echo json_encode(['success' => false, 'message' => 'Invalid withdrawal amount.']);
+    if ($user['points'] < $amount) {
+        echo json_encode(['error' => 'Insufficient points.']);
         return;
     }
     if (empty($method) || empty($details)) {
-        echo json_encode(['success' => false, 'message' => 'Withdrawal method and details are required.']);
+        echo json_encode(['error' => 'Payment method and details are required.']);
         return;
     }
-    if (strlen($details) > 500) { // Basic validation
-        echo json_encode(['success' => false, 'message' => 'Details too long.']);
-        return;
-    }
-
-    $user = get_user_full_data($conn, $user_db_id);
-    if ($user['points'] < $amount) {
-        echo json_encode(['success' => false, 'message' => 'Not enough points.', 'data' => $user]);
+    if (!in_array($method, ['UPI', 'Binance'])) {
+        echo json_encode(['error' => 'Invalid payment method.']);
         return;
     }
 
-    // Start transaction
+    $new_total_points = $user['points'] - $amount;
+
     $conn->begin_transaction();
     try {
-        $stmt_deduct = $conn->prepare("UPDATE users SET points = points - ? WHERE id = ? AND points >= ?");
-        $stmt_deduct->bind_param("iii", $amount, $user_db_id, $amount);
-        $stmt_deduct->execute();
+        $stmt_insert = $conn->prepare("INSERT INTO withdrawals (user_id, points_withdrawn, method, details, status) VALUES (?, ?, ?, ?, 'pending')");
+        if (!$stmt_insert) throw new Exception("Prepare failed (withdrawal insert): " . $conn->error);
+        $stmt_insert->bind_param("iiss", $user['user_id'], $amount, $method, $details);
+        if (!$stmt_insert->execute()) throw new Exception("Execute failed (withdrawal insert): " . $stmt_insert->error);
+        $stmt_insert->close();
 
-        if ($stmt_deduct->affected_rows > 0) {
-            $stmt_insert_withdrawal = $conn->prepare("INSERT INTO withdrawals (user_id, points_withdrawn, method, details, status) VALUES (?, ?, ?, ?, 'pending')");
-            $stmt_insert_withdrawal->bind_param("iiss", $user_db_id, $amount, $method, $details);
-            $stmt_insert_withdrawal->execute();
-            $stmt_insert_withdrawal->close();
-            
-            $conn->commit();
-            echo json_encode(['success' => true, 'message' => 'Withdrawal request submitted.', 'data' => get_user_full_data($conn, $user_db_id)]);
-        } else {
-            $conn->rollback(); // Points might have changed since check
-            echo json_encode(['success' => false, 'message' => 'Failed to process withdrawal. Insufficient points or error.', 'data' => get_user_full_data($conn, $user_db_id)]);
-        }
-        $stmt_deduct->close();
+        $stmt_update = $conn->prepare("UPDATE users SET points = ? WHERE user_id = ?");
+         if (!$stmt_update) throw new Exception("Prepare failed (user points for withdrawal): " . $conn->error);
+        $stmt_update->bind_param("ii", $new_total_points, $user['user_id']);
+        if (!$stmt_update->execute()) throw new Exception("Execute failed (user points for withdrawal): " . $stmt_update->error);
+        $stmt_update->close();
 
-    } catch (mysqli_sql_exception $exception) {
+        $conn->commit();
+        $user['points'] = $new_total_points; // Update in-memory user object
+        echo json_encode(['success' => true, 'data' => ['new_total_points' => $new_total_points]]);
+    } catch (Exception $e) {
         $conn->rollback();
-        error_log("Withdrawal transaction failed: " . $exception->getMessage());
-        echo json_encode(['success' => false, 'message' => 'Withdrawal request failed due to a server error.']);
+        log_db_error($conn, "Transaction failed (handleWithdrawal): " . $e->getMessage());
+        echo json_encode(['error' => 'Withdrawal request failed. ' . $e->getMessage()]);
     }
+}
+
+function log_db_error($conn, $message) {
+    // Basic error logging. In production, you might use a more robust logging system.
+    error_log("Database Error: " . $message . " | MySQL Error: " . $conn->error);
 }
 
 ?>
