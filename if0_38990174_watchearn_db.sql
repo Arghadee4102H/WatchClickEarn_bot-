@@ -8,97 +8,92 @@ SET time_zone = "+00:00";
 -- Table structure for table `users`
 --
 CREATE TABLE `users` (
-  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  `telegram_id` BIGINT UNSIGNED NOT NULL,
-  `username` VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
-  `first_name` VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
-  `points` BIGINT UNSIGNED NOT NULL DEFAULT 0,
-  `energy` INT NOT NULL DEFAULT 100,
-  `max_energy` INT NOT NULL DEFAULT 100,
-  `last_energy_update` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `click_count_today` INT NOT NULL DEFAULT 0,
-  `last_click_date` DATE NULL,
-  `ads_watched_today` INT NOT NULL DEFAULT 0,
-  `last_ad_watch_date` DATE NULL,
-  `last_ad_reward_timestamp` TIMESTAMP NULL,
-  `referred_by_user_id` BIGINT UNSIGNED NULL COMMENT 'Internal ID of the referrer user',
-  `join_date` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `telegram_id_unique` (`telegram_id`),
-  KEY `idx_referred_by_user_id` (`referred_by_user_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  `user_id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `telegram_id` BIGINT UNSIGNED NOT NULL UNIQUE,
+  `username` VARCHAR(255) DEFAULT NULL,
+  `first_name` VARCHAR(255) DEFAULT NULL,
+  `points` BIGINT UNSIGNED DEFAULT 0,
+  `energy` INT DEFAULT 100,
+  `max_energy` INT DEFAULT 100,
+  `energy_per_tap` INT DEFAULT 1,
+  `energy_refill_rate_seconds` INT DEFAULT 30, -- Seconds to refill 1 energy point
+  `last_energy_update_ts` BIGINT DEFAULT 0, -- Store as UNIX timestamp for easier calculation
+  `daily_clicks_count` INT DEFAULT 0,
+  `max_daily_clicks` INT DEFAULT 2500,
+  `last_click_reset_date_utc` DATE DEFAULT NULL,
+  `referred_by_user_id` BIGINT UNSIGNED DEFAULT NULL,
+  `total_referrals` INT DEFAULT 0,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`user_id`),
+  KEY `idx_telegram_id` (`telegram_id`),
+  FOREIGN KEY (`referred_by_user_id`) REFERENCES `users`(`user_id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 --
 -- Table structure for table `withdrawals`
 --
 CREATE TABLE `withdrawals` (
-  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `withdrawal_id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   `user_id` BIGINT UNSIGNED NOT NULL,
   `points_withdrawn` BIGINT UNSIGNED NOT NULL,
-  `method` VARCHAR(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-  `details` TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
-  `status` ENUM('pending','processing','completed','rejected') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending',
-  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  KEY `idx_user_id_withdrawals` (`user_id`),
-  CONSTRAINT `fk_withdrawals_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  `method` VARCHAR(50) NOT NULL, -- e.g., 'UPI', 'Binance'
+  `details` TEXT NOT NULL, -- e.g., UPI ID, Binance ID
+  `status` ENUM('pending', 'completed', 'failed') DEFAULT 'pending',
+  `withdrawal_timestamp` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`withdrawal_id`),
+  FOREIGN KEY (`user_id`) REFERENCES `users`(`user_id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 --
 -- Table structure for table `tasks`
 --
 CREATE TABLE `tasks` (
-  `id` INT NOT NULL AUTO_INCREMENT,
-  `name` VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-  `description` TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL,
-  `link` VARCHAR(512) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-  `points_reward` INT NOT NULL DEFAULT 0,
-  `type` ENUM('telegram_join','other') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'telegram_join',
-  `is_daily_refresh` BOOLEAN NOT NULL DEFAULT TRUE,
-  `active` BOOLEAN NOT NULL DEFAULT TRUE,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  `task_id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `name` VARCHAR(255) NOT NULL,
+  `description` TEXT,
+  `link` VARCHAR(255) NOT NULL,
+  `points_reward` INT UNSIGNED NOT NULL,
+  `is_daily` BOOLEAN DEFAULT TRUE,
+  PRIMARY KEY (`task_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 --
--- Table structure for table `user_completed_tasks`
+-- Dumping data for table `tasks`
 --
-CREATE TABLE `user_completed_tasks` (
+INSERT INTO `tasks` (`name`, `description`, `link`, `points_reward`, `is_daily`) VALUES
+('Join Telegram Channel 1', 'Join our official news channel.', 'https://t.me/WatchClickEarn', 50, TRUE),
+('Join Telegram Group', 'Join our community group.', 'https://t.me/WatchClickEarnchat', 50, TRUE),
+('Join Telegram Channel 2', 'Join our partner channel.', 'https://t.me/earningsceret', 50, TRUE),
+('Join Telegram Channel 3', 'Join another partner channel.', 'https://t.me/ShopEarnHub4102h', 50, TRUE);
+
+--
+-- Table structure for table `user_tasks_completed`
+-- (Tracks completion of the set of 4 daily tasks)
+--
+CREATE TABLE `user_daily_task_sets` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   `user_id` BIGINT UNSIGNED NOT NULL,
-  `task_id` INT NOT NULL,
-  `completion_date` DATE NOT NULL COMMENT 'UTC date of completion',
-  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `completion_date_utc` DATE NOT NULL,
+  `completed_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `unique_user_task_daily` (`user_id`,`task_id`,`completion_date`),
-  KEY `idx_user_id_completed_tasks` (`user_id`),
-  KEY `idx_task_id_completed_tasks` (`task_id`),
-  CONSTRAINT `fk_completed_tasks_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_completed_tasks_task_id` FOREIGN KEY (`task_id`) REFERENCES `tasks` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  UNIQUE KEY `user_daily_task_set_unique` (`user_id`, `completion_date_utc`),
+  FOREIGN KEY (`user_id`) REFERENCES `users`(`user_id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 
 --
--- Table structure for table `referrals`
+-- Table structure for table `user_ads_log`
 --
-CREATE TABLE `referrals` (
-  `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  `referrer_user_id` BIGINT UNSIGNED NOT NULL COMMENT 'Internal ID of user who referred',
-  `referred_user_id` BIGINT UNSIGNED NOT NULL COMMENT 'Internal ID of user who was referred',
-  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE KEY `unique_referral_pair` (`referrer_user_id`, `referred_user_id`),
-  CONSTRAINT `fk_referrals_referrer_id` FOREIGN KEY (`referrer_user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_referrals_referred_id` FOREIGN KEY (`referred_user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
---
--- Add default tasks
---
-INSERT INTO `tasks` (`name`, `description`, `link`, `points_reward`, `type`, `is_daily_refresh`, `active`) VALUES
-('Join Telegram Channel 1', 'Join our main Telegram channel for updates.', 'https://t.me/WatchClickEarn', 50, 'telegram_join', TRUE, TRUE),
-('Join Telegram Group', 'Join our community group.', 'https://t.me/WatchClickEarnchat', 50, 'telegram_join', TRUE, TRUE),
-('Join Telegram Channel 2', 'Join our partner channel.', 'https://t.me/earningsceret', 50, 'telegram_join', TRUE, TRUE),
-('Join Telegram Channel 3', 'Join for more news.', 'https://t.me/ShopEarnHub4102h', 50, 'telegram_join', TRUE, TRUE);
+CREATE TABLE `user_ads_log` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `user_id` BIGINT UNSIGNED NOT NULL,
+    `watched_at_utc` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `points_earned` INT DEFAULT 0,
+    PRIMARY KEY (`id`),
+    KEY `idx_user_ads_log_user_date` (`user_id`, `watched_at_utc`),
+    FOREIGN KEY (`user_id`) REFERENCES `users`(`user_id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 COMMIT;
