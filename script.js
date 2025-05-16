@@ -102,26 +102,45 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- API Helper ---
-    async function fetchAPI(action, data = {}) {
-        try {
-            const response = await fetch(`${API_URL}?action=${action}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ ...data, telegram_id: userData ? userData.telegram_id : (tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id : null) })
-            });
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({ error: "Unknown server error" }));
-                console.error(`API Error (${response.status}):`, errorData.error || response.statusText);
-                return { error: errorData.error || `Server responded with status ${response.status}` };
+async function fetchAPI(action, data = {}) {
+    try {
+        const response = await fetch(`${API_URL}?action=${action}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ ...data, telegram_id: userData ? userData.telegram_id : (tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id : null) })
+        });
+        if (!response.ok) {
+            // --- MODIFIED SECTION START ---
+            let errorText = await response.text(); // Get raw text first
+            let errorData;
+            try {
+                errorData = JSON.parse(errorText); // Try to parse as JSON
+            } catch (e) {
+                // If not JSON, it might be a PHP error string
+                errorData = { error: "SERVER_RESPONSE_NOT_JSON", details: errorText.substring(0, 500) }; // Show first 500 chars
             }
-            return await response.json();
-        } catch (error) {
-            console.error('Fetch API error:', error);
-            return { error: 'Network error or server is unreachable.' };
+            console.error(`API Error (${response.status}):`, errorData);
+            let displayError = errorData.message || errorData.error || `Server status ${response.status}`;
+            if (errorData.debug_message) displayError += ` (Debug: ${errorData.debug_message})`;
+            if (errorData.details) displayError += ` (Details: ${errorData.details})`;
+            return { error: displayError };
+            // --- MODIFIED SECTION END ---
         }
+        return await response.json();
+    } catch (error) {
+        console.error('Fetch API error:', error);
+        // Make sure 'error' object is stringified or handled if it's complex
+        let errorMessage = 'Network error or server unreachable.';
+        if (error && error.message) {
+            errorMessage = `Network Error: ${error.message}`;
+        } else if (typeof error === 'object') {
+            errorMessage = `Network Error: ${JSON.stringify(error)}`;
+        }
+        return { error: errorMessage };
     }
+}
 
     // --- UI Updates ---
     function updateUI() {
